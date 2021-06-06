@@ -51,6 +51,9 @@ class ModelArguments:
     scl_weight: float = field(
         default=0.8, metadata={"help": "Weight for supervised contrastive loss."}
     )
+    tau: float = field(
+        default=0.07, metadata={"help": "temperature scalar for supervised contrastive loss."}
+    )
     num_labels: int = field(
         default=5,
     )

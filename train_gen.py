@@ -131,6 +131,7 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
                 wandb.log({'learning_rate': optimizer.param_groups[0]['lr']})
 
         model.module.save_pretrained(train_args.output_dir)
+        tokenizer.save_pretrained(train_args.output_dir)
         if train_args.evaluation_strategy == "epoch":
             results = {}
             if train_args.evaluation_metric == "ppl" or train_args.evaluation_metric == "both":
@@ -148,6 +149,7 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
 
     # save the last model
     model.module.save_pretrained(train_args.output_dir)
+    tokenizer.save_pretrained(train_args.output_dir)
 
     return global_step, tr_loss / global_step
 
@@ -177,11 +179,15 @@ def main():
 
     tokenizer = GPT2Tokenizer.from_pretrained(model_args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token # gpt2 does not have pad token at first.
+    special_tokens_dict = {
+        "additional_special_tokens": ['[MALE]', '[FEMALE]', '[NEUTRAL]'],
+    }
+    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
     config = GPT2Config.from_pretrained(model_args.model_name_or_path)
     # set more attr #
     setattr(config, 'f_embd', 768)
     setattr(config, 'classifier_dropout', 0.0)
-    setattr(config, 'temperature', 0.1)
+    setattr(config, 'temperature', model_args.tau)
     setattr(config, 'pad_token_id', tokenizer.pad_token_id)
 
     model = SupConGPT2.from_pretrained(
@@ -189,12 +195,13 @@ def main():
         config=config,
     )
     model = model.to(train_args.device)
+    model.resize_token_embeddings(len(tokenizer))
 
     if train_args.do_train:
         logger.info("***** Load dataset *****")
         train_dataset, origin_dataset = load_and_cache_examples_train(data_args, tokenizer)
         t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
-
+        print(tokenizer.decode(train_dataset[0]['origin']['input_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True))
         logger.info("***** Load optimizer *****")
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ["bias", "LayerNorm.weight"]
@@ -234,7 +241,7 @@ def main():
             torch.distributed.barrier()  # Barrier to make sure only the first process in distributed training download model & vocab
         
         # weight and bias monitoring
-        wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}")
+        wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         wandb.watch(model, log_freq=20)
         logger.info("***** Running training *****")
         global_step, tr_avg_loss = train(train_dataset, tokenizer, model, optimizer, scheduler,
