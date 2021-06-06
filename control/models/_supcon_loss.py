@@ -138,6 +138,7 @@ class ContrastiveLoss(nn.Module):
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
 
+
     def forward(self, features, labels):
         features, labels = self.make_samples(features, labels)
         rep_anchor = features[:, 0]
@@ -145,6 +146,7 @@ class ContrastiveLoss(nn.Module):
         distances = self.distance_metric(rep_anchor, rep_other)
         losses = 0.5 * (labels.float() * distances.pow(2) + (1 - labels).float() * F.relu(self.margin - distances).pow(2))
         return losses.mean() if self.size_average else losses.sum()
+
 
     def make_samples(self, features, labels):
         batch_size = features.size()[0]
