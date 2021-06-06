@@ -27,11 +27,9 @@ AIIDE 2021 story control
 
 ```python
 ./data/         # 전체 데이터
-    ./train_dataset/           
+
 
 ```
-
-data에 대한 argument 는 arguments.py 의 DataTrainingArguments 에서 확인 가능합니다. 
 
 # 훈련, 평가, 추론
 
@@ -41,26 +39,23 @@ train.py
 
 ```
 # 학습 예시 (train_dataset 사용)
-python train.py --output_dir ./models/train_dataset --do_train
+python train_scl.py --train_data_file data/eng_movieplot_3_dr_augderu.tsv --output_dir outputs/test_scl --overwrite_output_dir --do_train --num_train_epochs 10 --per_device_train_batch_size 8 --fp16
 ```
 
 ### eval
 
 ```
-python train.py --output_dir ./outputs/train_dataset --model_name_or_path ./models/train_dataset/ --do_eval 
+python train_gen.py --model_name_or_path ./outputs/test_scl/ --eval_data_file data/dev.tsv --output_dir outputs/test_scl --do_eval --per_device_eval_batch_size 8 --fp16
 ```
 
 ### inference
 
 
-* 학습한 모델의  
+* 아직 안되어잇음  
 ```
-# wandb 가 로그인 되어있다면 자동으로 결과가 wandb 에 저장됩니다. 아니면 단순히 출력됩니다
-python inference.py --output_dir ./outputs/test_dataset/ --dataset_name ./data/test_dataset/ --model_name_or_path ./models/train_dataset/ --do_predict
 ```
 
 ### How to submit
 
-inference.py 파일을 위 예시처럼 --do_predict 으로 실행하면 --output_dir 위치에 predictions.json 이라는 파일이 생성됩니다. 해당 파일을 제출해주시면 됩니다.
 
 # Citation
