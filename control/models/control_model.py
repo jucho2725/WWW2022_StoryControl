@@ -8,9 +8,9 @@ from ._lmhead_model import GPT2LMHeadModel
 class SupConGPT2(GPT2PreTrainedModel):
     def __init__(self, config):
         super(SupConGPT2, self).__init__(config)
-        setattr(config, 'f_embd', 128)
-        setattr(config, 'classifier_dropout', 0.9)
-        setattr(config, 'temperature', 0.04)
+        # setattr(config, 'f_embd', 128)
+        # setattr(config, 'classifier_dropout', 0.9)
+        # setattr(config, 'temperature', 0.04)
         self.model = GPT2Model(config)
         self.generater = GPT2LMHeadModel(config, self.model)
         self.encoder = GPT2SupConModel(config, self.model)
@@ -28,10 +28,11 @@ class SupConGPT2(GPT2PreTrainedModel):
     def forward(self, batch):        
         if self.mode == "train":
             # nll loss from generater
-            batch_org = batch['origin']
+            # batch_org = batch['origin']
 
-            gen_output = self.generater(**batch_org)
-            nll_loss = gen_output.loss
+            # gen_output = self.generater(**batch_org)
+            # nll_loss = gen_output.loss
+            nll_loss = 0
 
             # scl loss from encoder
             batch_de, batch_ru = batch['aug_de'], batch['aug_ru']
