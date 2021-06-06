@@ -18,14 +18,15 @@ import torch.nn.functional as F
 import logging
 logger = logging.getLogger(__name__)
 
-from ._supcon_loss import SupConLoss
+from ._supcon_loss import SupConLoss, ContrastiveLoss
         
 class GPT2SupConModel(GPT2PreTrainedModel):
     def __init__(self, config, model):
         super(GPT2SupConModel, self).__init__(config)
         self.model = model
         self._encoder = GPT2ForSequenceEncoder(config, model)
-        self._criterion = SupConLoss(temperature=config.temperature)
+        # self._criterion = SupConLoss(temperature=config.temperature)
+        self._criterion = ContrastiveLoss()
 
 
     def forward(self, batch_input1, batch_input2, labels):

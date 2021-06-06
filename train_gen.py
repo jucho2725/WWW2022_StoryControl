@@ -125,13 +125,18 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
                 global_step += 1
 
             if (step + 1) % 10 == 0:
-                wandb.log({"Train Sum Loss": loss.item()})
-                wandb.log({"Train NLL Loss": generator_loss.mean().item()})
+                # wandb.log({"Train Sum Loss": loss.item()})
+                # wandb.log({"Train NLL Loss": generator_loss.mean().item()})
                 wandb.log({"Train SCL Loss": encoder_loss.mean().item()})
                 wandb.log({'learning_rate': optimizer.param_groups[0]['lr']})
 
+<<<<<<< Updated upstream
         model.module.save_pretrained(train_args.output_dir)
         tokenizer.save_pretrained(train_args.output_dir)
+=======
+        # model.module.save_pretrained(train_args.output_dir)
+        model.save_pretrained(train_args.output_dir)
+>>>>>>> Stashed changes
         if train_args.evaluation_strategy == "epoch":
             results = {}
             if train_args.evaluation_metric == "ppl" or train_args.evaluation_metric == "both":
@@ -148,8 +153,13 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
                 wandb.log({f"{key}": value})
 
     # save the last model
+<<<<<<< Updated upstream
     model.module.save_pretrained(train_args.output_dir)
     tokenizer.save_pretrained(train_args.output_dir)
+=======
+    # model.module.save_pretrained(train_args.output_dir)
+    model.save_pretrained(train_args.output_dir)
+>>>>>>> Stashed changes
 
     return global_step, tr_loss / global_step
 
