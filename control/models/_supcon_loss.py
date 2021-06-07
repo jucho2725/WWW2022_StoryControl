@@ -6,6 +6,8 @@ from __future__ import print_function
 
 import torch
 import torch.nn as nn
+from enum import Enum
+import torch.nn.functional as F
 
 
 class SupConLoss(nn.Module):
@@ -96,3 +98,77 @@ class SupConLoss(nn.Module):
         loss = loss.view(anchor_count, batch_size).mean()
 
         return loss
+
+
+class SiameseDistanceMetric(Enum):
+    """
+    The metric for the contrastive loss
+    """
+    EUCLIDEAN = lambda x, y: F.pairwise_distance(x, y, p=2)
+    MANHATTAN = lambda x, y: F.pairwise_distance(x, y, p=1)
+    COSINE_DISTANCE = lambda x, y: 1-F.cosine_similarity(x, y)
+
+
+class ContrastiveLoss(nn.Module):
+    """
+    Contrastive loss. Expects as input two texts and a label of either 0 or 1. If the label == 1, then the distance between the
+    two embeddings is reduced. If the label == 0, then the distance between the embeddings is increased.
+    Further information: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    :param model: SentenceTransformer model
+    :param distance_metric: Function that returns a distance between two emeddings. The class SiameseDistanceMetric contains pre-defined metrices that can be used
+    :param margin: Negative samples (label == 0) should have a distance of at least the margin value.
+    :param size_average: Average by the size of the mini-batch.
+    Example::
+        from sentence_transformers import SentenceTransformer,  SentencesDataset, LoggingHandler, losses
+        from sentence_transformers.readers import InputExample
+        model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+        train_examples = [InputExample(texts=['This is a positive pair', 'Where the distance will be minimized'], label=1),
+            InputExample(texts=['This is a negative pair', 'Their distance will be increased'], label=0)]
+        train_dataset = SentencesDataset(train_examples, model)
+        train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=train_batch_size)
+        train_loss = losses.ContrastiveLoss(model=model)
+    """
+
+    def __init__(self, distance_metric=SiameseDistanceMetric.COSINE_DISTANCE, margin: float = 0.5, size_average:bool = True):
+        super(ContrastiveLoss, self).__init__()
+        self.distance_metric = distance_metric
+        self.margin = margin
+        self.size_average = size_average
+        self.device = (torch.device('cuda')
+                  if torch.cuda.is_available()
+                  else torch.device('cpu'))
+
+
+    def forward(self, features, labels):
+        features, labels = self.make_samples(features, labels)
+        rep_anchor = features[:, 0]
+        rep_other = features[:, 1]
+        distances = self.distance_metric(rep_anchor, rep_other)
+        losses = 0.5 * (labels.float() * distances.pow(2) + (1 - labels).float() * F.relu(self.margin - distances).pow(2))
+        return losses.mean() if self.size_average else losses.sum()
+
+
+    def make_samples(self, features, labels):
+        batch_size = features.size()[0]
+        reconst = []
+        re_labels = []
+        for i in range(batch_size):
+            anchor = features[i][0]
+            temp = torch.stack([anchor, features[i][1]])
+            reconst.append(temp)
+            re_labels.append(1)
+            anchor_label = labels[i]
+            for j in range(i, batch_size):
+                temp = torch.stack([anchor, features[j][0]])
+                reconst.append(temp)
+                for _ in range(2):
+                    if anchor_label != labels[j]:
+                        re_labels.append(0)
+                    else:
+                        re_labels.append(0)
+                temp = torch.stack([anchor, features[j][1]])
+                reconst.append(temp)
+        reconst = torch.stack(reconst).to(self.device)
+        labels = torch.tensor(re_labels, dtype=torch.float).to(self.device)
+    
+        return reconst, labels
