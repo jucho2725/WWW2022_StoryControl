@@ -60,6 +60,39 @@ class DataCollatorForLanguageModeling:
         batch["labels"] = labels
         return batch
 
+
+    # def __call__(
+    #     self, examples: List[Union[List[int], torch.Tensor, Dict[str, torch.Tensor]]]
+    # ) -> Dict[str, torch.Tensor]:
+    #     # Handle dict or lists with proper padding and conversion to tensor.
+    #     if isinstance(examples[0], (dict, BatchEncoding)):
+    #         batch = self.tokenizer.pad(examples, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of)
+    #     else:
+    #         batch = {"input_ids": _collate_batch(examples, self.tokenizer, pad_to_multiple_of=self.pad_to_multiple_of)}
+
+    #     labels = batch["input_ids"].clone()
+    #     if self.tokenizer.pad_token_id is not None:
+    #         labels[labels == self.tokenizer.pad_token_id] = -100
+    #     batch["labels"] = labels
+    #     return batch
+
+    # def __call__(
+    #     self, examples: List[Union[List[int], torch.Tensor, Dict[str, torch.Tensor]]]
+    # ) -> Dict[str, torch.Tensor]:
+    #     # Handle dict or lists with proper padding and conversion to tensor.
+    #     input_ids = [ex['input_ids'] for ex in examples]
+    #     batch = {"input_ids": self.pad(input_ids)}
+    #     labels = batch["input_ids"].clone()
+    #     if self.tokenizer.pad_token_id is not None:
+    #         labels[labels == self.tokenizer.pad_token_id] = -100
+    #     batch["labels"] = labels
+    #     return batch
+
+    # def pad(self, examples: List[torch.Tensor]):
+    #     if self.tokenizer._pad_token is None:
+    #         return pad_sequence(examples, batch_first=True)
+    #     return pad_sequence(examples, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+
 @dataclass
 class DataCollatorForSCL:
     """

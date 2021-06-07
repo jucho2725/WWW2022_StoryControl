@@ -26,9 +26,14 @@ from transformers.utils.model_parallel_utils import assert_device_map, get_devic
 class GPT2LMHeadModel(GPT2PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"attn.masked_bias", r"attn.bias", r"lm_head.weight"]
 
-    def __init__(self, config, model):
+    # def __init__(self, config, model):
+    #     super().__init__(config)
+    #     self.transformer = model
+    def __init__(self, config):
         super().__init__(config)
-        self.transformer = model
+        self.transformer = GPT2Model(config)
+
+        
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         self.transformer._init_weights(self.lm_head)

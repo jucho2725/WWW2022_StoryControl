@@ -134,6 +134,7 @@ class TrainingArguments:
     Parameters: please check out transfomrers.src.transformers.training_args.py to see each parameters in detail.
     """
     output_dir: str = field(
+        default="./outputs/test/",
         metadata={"help": "The output directory where the model predictions and checkpoints will be written."},
     )
     overwrite_output_dir: bool = field(
