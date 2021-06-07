@@ -280,41 +280,40 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
                 global_step += 1
 
             if (step + 1) % 10 == 0:
-                # wandb.log({"Train Sum Loss": loss.item()})
-                # wandb.log({"Train NLL Loss": generator_loss.mean().item()})
+                wandb.log({"Train Sum Loss": loss.item()})
+                wandb.log({"Train NLL Loss": generator_loss.mean().item()})
                 wandb.log({"Train SCL Loss": encoder_loss.mean().item()})
                 wandb.log({'learning_rate': optimizer.param_groups[0]['lr']})
 
-<<<<<<< Updated upstream
         model.module.save_pretrained(train_args.output_dir)
         tokenizer.save_pretrained(train_args.output_dir)
-=======
-        # model.module.save_pretrained(train_args.output_dir)
-        model.save_pretrained(train_args.output_dir)
->>>>>>> Stashed changes
+        print("evaluation start", train_args.evaluation_strategy)
         if train_args.evaluation_strategy == "epoch":
             results = {}
             if train_args.evaluation_metric == "ppl" or train_args.evaluation_metric == "both":
-                result = evaluate_ppl(data_args, train_args, model, tokenizer)
-                result = dict((k + "_{}".format(global_step), v) for k, v in result.items())
+                logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
+                if train_args.n_gpu > 1:
+                    result = evaluate_ppl(data_args, train_args, model.module.generater, tokenizer)
+                else:
+                    result = evaluate_ppl(data_args, train_args, model.generater, tokenizer)
                 results.update(result)
             if train_args.evaluation_metric == "dist" or train_args.evaluation_metric == "both":
-                result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer)
-                result = dict((k + "_{}".format(global_step), v) for k, v in result.items())
-                results.update(result)
+                if (now_epoch + 1) % 10 == 0:
+                    logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
+                    if train_args.n_gpu > 1:
+                        result = evaluate_dist_scores(data_args, train_args, gen_args, model.module.generater, tokenizer)
+                    else:
+                        result = evaluate_dist_scores(data_args, train_args, gen_args, model.generater, tokenizer)
+                    results.update(result)
 
-            for key, value in sorted(results.metrics.items()):
+            for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
                 wandb.log({f"{key}": value})
 
+
     # save the last model
-<<<<<<< Updated upstream
     model.module.save_pretrained(train_args.output_dir)
     tokenizer.save_pretrained(train_args.output_dir)
-=======
-    # model.module.save_pretrained(train_args.output_dir)
-    model.save_pretrained(train_args.output_dir)
->>>>>>> Stashed changes
 
     return global_step, tr_loss / global_step
 
@@ -411,9 +410,21 @@ def main():
         wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         wandb.watch(model, log_freq=20)
         logger.info("***** Running training *****")
+        if train_args.evaluation_first:
+            logger.info("***** Running evaluation *****")
+            if train_args.n_gpu > 1:  # case of dist training
+                results = evaluate(model.module.generater, tokenizer, data_args, model_args, train_args, gen_args, )
+            else:
+                results = evaluate(model.generater, tokenizer, data_args, model_args, train_args, gen_args, )
+            for key, value in sorted(results.items()):
+                logger.info(f"  {key} = {value}")
+                if train_args.do_train:
+                    wandb.log({f"{key}": value})
+
         global_step, tr_avg_loss = train(train_dataset, tokenizer, model, optimizer, scheduler,
                                         data_args, model_args, train_args, gen_args, )
         logger.info(" global_step = %s, average loss = %s", global_step, tr_avg_loss)
+
 
 
     if train_args.do_eval:

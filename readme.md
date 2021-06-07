@@ -39,13 +39,13 @@ train.py
 
 ```
 # 학습 예시 (train_dataset 사용)
-python train_gen.py --train_data_file data/train_genre3.tsv --output_dir outputs/test_scl --overwrite_output_dir --do_train --num_train_epochs 10 --per_device_train_batch_size 8 --fp16
+python train_gen.py --train_data_file data/train_genre3_delex.tsv --output_dir outputs/test_scl --overwrite_output_dir --do_train --num_train_epochs 10 --per_device_train_batch_size 8 --fp16
 ```
 
-### eval
+### eval 까지 추가하기 
 
 ```
-python train_gen.py --model_name_or_path ./outputs/test_scl/ --eval_data_file data/dev.tsv --output_dir outputs/test_scl --do_eval --per_device_eval_batch_size 8 --fp16
+python train_gen.py --train_data_file data/dummy_genre3_delex.tsv --eval_data_file data/dummy_genre3_delex.tsv --output_dir outputs/test_traineval --overwrite_output_dir --do_train --do_eval --num_train_epochs 1 --per_device_train_batch_size 8 --fp16 --evaluation_strategy epoch --evaluation_metric ppl
 ```
 
 ### inference

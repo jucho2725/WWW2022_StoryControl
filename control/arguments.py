@@ -150,12 +150,16 @@ class TrainingArguments:
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the dev set."})
     do_predict: bool = field(default=False, metadata={"help": "Whether to run predictions on the test set."})
-    evaluation_strategy: IntervalStrategy = field(
+    evaluation_strategy: str = field(
         default="no",
         metadata={"help": "The evaluation strategy to use."},
     )
     evaluation_metric: str = field(
         default="no",
+        metadata={"help": "The evaluation metric, 'ppl','dist','both' three options."},
+    )
+    evaluation_first: bool = field(
+        default=False,
         metadata={"help": "The evaluation metric, 'ppl','dist','both' three options."},
     )
 
@@ -171,10 +175,6 @@ class TrainingArguments:
         default=1,
         metadata={"help": "Number of updates steps to accumulate before performing a backward/update pass."},
     )
-    eval_accumulation_steps: Optional[int] = field(
-        default=None,
-        metadata={"help": "Number of predictions steps to accumulate before moving the tensors to the CPU."},
-    )
     warmup_steps: int = field(default=0, metadata={"help": "Linear warmup over warmup_steps."})
 
     learning_rate: float = field(default=5e-5, metadata={"help": "The initial learning rate for AdamW."})
@@ -187,13 +187,6 @@ class TrainingArguments:
         metadata={"help": "If > 0: set total number of training steps to perform. Override num_train_epochs."},
     )
 
-    logging_dir: Optional[str] = field(default_factory=default_logdir, metadata={"help": "Tensorboard log dir."})
-    logging_strategy: IntervalStrategy = field(
-        default="steps",
-        metadata={"help": "The logging strategy to use."},
-    )
-    logging_first_step: bool = field(default=False, metadata={"help": "Log the first global_step"})
-    logging_steps: int = field(default=500, metadata={"help": "Log every X updates steps."})
 
 
     no_cuda: bool = field(default=False, metadata={"help": "Do not use CUDA even when it is available"})
@@ -216,10 +209,7 @@ class TrainingArguments:
         default="auto",
         metadata={"help": "The backend to be used for mixed precision.", "choices": ["auto", "amp", "apex"]},
     )
-    fp16_full_eval: bool = field(
-        default=False,
-        metadata={"help": "Whether to use full 16-bit precision evaluation instead of 32-bit"},
-    )
+
     local_rank: int = field(default=-1, metadata={"help": "For distributed training: local_rank"})
 
 
@@ -233,18 +223,9 @@ class TrainingArguments:
             "help": "Number of subprocesses to use for data loading (PyTorch only). 0 means that the data will be loaded in the main process."
         },
     )
-
-    remove_unused_columns: Optional[bool] = field(
-        default=True, metadata={"help": "Remove columns not required by the model when using an nlp.Dataset."}
-    )
-
     load_best_model_at_end: Optional[bool] = field(
         default=False,
         metadata={"help": "Whether or not to load the best model found during training at the end of training."},
-    )
-
-    label_smoothing_factor: float = field(
-        default=0.0, metadata={"help": "The label smoothing epsilon to apply (zero means no label smoothing)."}
     )
 
     resume_from_checkpoint: Optional[str] = field(
@@ -252,10 +233,6 @@ class TrainingArguments:
         metadata={"help": "The path to a folder with a valid checkpoint for your model."},
     )
     _n_gpu: int = field(init=False, repr=False, default=-1)
-    mp_parameters: str = field(
-        default="",
-        metadata={"help": "Used by the SageMaker launcher to send mp-specific args. Ignored in Trainer"},
-    )
 
     def __post_init__(self):
         # Handle --use_env option in torch.distributed.launch (local_rank not passed as an arg then).
@@ -269,23 +246,6 @@ class TrainingArguments:
         #  see https://github.com/huggingface/transformers/issues/10628
         if self.output_dir is not None:
             self.output_dir = os.path.expanduser(self.output_dir)
-        if self.logging_dir is not None:
-            self.logging_dir = os.path.expanduser(self.logging_dir)
-
-        if isinstance(self.evaluation_strategy, EvaluationStrategy):
-            warnings.warn(
-                "using `EvaluationStrategy` for `evaluation_strategy` is deprecated and will be removed in version 5 of 🤗 Transformers. Use `IntervalStrategy` instead",
-                FutureWarning,
-            )
-            # Go back to the underlying string or we won't be able to instantiate `IntervalStrategy` on it.
-            self.evaluation_strategy = self.evaluation_strategy.value
-
-        self.evaluation_strategy = IntervalStrategy(self.evaluation_strategy)
-        self.logging_strategy = IntervalStrategy(self.logging_strategy)
-
-        if self.do_eval is False and self.evaluation_strategy != IntervalStrategy.NO:
-            self.do_eval = True
-
 
 
         if is_torch_available() and self.device.type != "cuda" and (self.fp16 or self.fp16_full_eval):
@@ -433,12 +393,6 @@ class TrainingArguments:
         """
         return not is_sagemaker_mp_enabled()
 
-    @property
-    def _no_sync_in_gradient_accumulation(self):
-        """
-        Whether or not to use no_sync for the gradients when doing gradient accumulation.
-        """
-        return not (self.deepspeed or is_sagemaker_dp_enabled() or is_sagemaker_mp_enabled())
 
     def to_dict(self):
         """
