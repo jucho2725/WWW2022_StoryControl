@@ -33,7 +33,7 @@ def write_sent(sents, path):
             f.write(s + '\n')
 
 def clean_text(text):
-    return text.strip().replace("<s>", "").replace("<|endoftext|>", "").replace("<unk>", "").replace("\n", "")
+    return text.strip().replace("<s>", "").replace("<|endoftext|>", "").replace("<|pad|>", "").replace("\n", "")
 
 def write_df(sents, data_args, path):
     df = pd.read_csv(data_args.eval_data_file, sep='\t')

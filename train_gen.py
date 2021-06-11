@@ -333,15 +333,17 @@ def main():
 
     # Set seed
     set_seed(train_args.seed)
-
-    tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-2.7B", bos_token='<|endoftext|>',
-                                              eos_token='<|endoftext|>', pad_token='<|pad|>')
+    tokenizer = GPT2Tokenizer.from_pretrained(model_args.model_name_or_path)
+    tokenizer.pad_token = tokenizer.eos_token
+#     tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-2.7B", bos_token='<|endoftext|>',
+#                                               eos_token='<|endoftext|>', pad_token='<|pad|>')
 # ###
-#     special_tokens_dict = {
-#         # "pad_token": "[PAD]",
-#         "additional_special_tokens": ['[MALE]', '[FEMALE]', '[NEUTRAL]'],
-#     }
-#     num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
+    special_tokens_dict = {
+        "pad_token": "<|pad|>",
+        "bos_token": "<|endoftext|>",
+        # "additional_special_tokens": ['[MALE]', '[FEMALE]', '[NEUTRAL]'],
+    }
+    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
 # ###
     config = GPT2Config.from_pretrained(model_args.model_name_or_path)
     # set more attr #
@@ -356,11 +358,11 @@ def main():
     )
     model = model.to(train_args.device)
 # ###
-#     model.generater.resize_token_embeddings(len(tokenizer))
-#     # issue https://github.com/huggingface/transformers/issues/8039
-#     unk_tok_emb = model.generater.transformer.wte.weight.data[50256, :]
-#     for i in range(num_added_toks):
-#         model.generater.transformer.wte.weight.data[-(i+1), :] = unk_tok_emb
+    model.generater.resize_token_embeddings(len(tokenizer))
+    # issue https://github.com/huggingface/transformers/issues/8039
+    unk_tok_emb = model.generater.transformer.wte.weight.data[50256, :]
+    for i in range(num_added_toks):
+        model.generater.transformer.wte.weight.data[-(i+1), :] = unk_tok_emb
 # ###
 
     if train_args.do_train:
@@ -409,9 +411,11 @@ def main():
             torch.distributed.barrier()  # Barrier to make sure only the first process in distributed training download model & vocab
 
         # weight and bias monitoring
+
+        logger.info("***** Running training *****")
+        logger.info(f"***** Genre training {not data_args.no_genre} *****")
         wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         wandb.watch(model, log_freq=20)
-        logger.info("***** Running training *****")
         if train_args.evaluation_first:
             logger.info("***** Running evaluation *****")
             if train_args.n_gpu > 1:  # case of dist training

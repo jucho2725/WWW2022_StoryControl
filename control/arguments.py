@@ -118,7 +118,6 @@ class GenerationArguments:
     min_length: int = field(default=100)
     #
     no_repeat_ngram_size: int = field(default=4)
-    encoder_no_repeat_ngram_size: int = field(default=4)
 
 
 def default_logdir() -> str:
