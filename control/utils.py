@@ -2,6 +2,7 @@ import random
 import numpy as np
 import logging
 import torch
+import pandas as pd
 from transformers import (
 is_torch_available,
 )
@@ -33,3 +34,9 @@ def write_sent(sents, path):
 
 def clean_text(text):
     return text.strip().replace("<s>", "").replace("<|endoftext|>", "").replace("<unk>", "").replace("\n", "")
+
+def write_df(sents, data_args, path):
+    df = pd.read_csv(data_args.eval_data_file, sep='\t')
+    df['original'] = df['content']
+    df['content'] = sents
+    df.to_csv(path, index=False, sep='\t')

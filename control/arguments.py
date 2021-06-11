@@ -92,6 +92,7 @@ class DataArguments:
                     "be faster on GPU but will be slower on TPU)."
         },
     )
+    no_genre: bool = field(default=False)
     ignore_pad_token_for_loss: bool = field(default=True)
     padding_in_preprocess: bool = field(default=True,)
 
@@ -106,7 +107,6 @@ class GenerationArguments:
     # beam
     num_beams: int = field(default=5)
     early_stopping: bool = field(default=True)
-    no_repeat_ngram_size:  int = field(default=4)
     # filtering
     top_k: int = field(default=50)
     top_p: float = field(default=0.95)
@@ -115,7 +115,10 @@ class GenerationArguments:
     repetition_penalty: float = field(default=1.1)
     # others
     num_return_sequences: int = field(default=1)
-
+    min_length: int = field(default=100)
+    #
+    no_repeat_ngram_size: int = field(default=4)
+    encoder_no_repeat_ngram_size: int = field(default=4)
 
 
 def default_logdir() -> str:

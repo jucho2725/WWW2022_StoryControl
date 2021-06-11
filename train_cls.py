@@ -33,6 +33,28 @@ label_to_int = {'romance': 0,
             'western':3,}
 int_to_label = {v: k for k, v in label_to_int.items()}
 
+
+def label_to_binary(label, selected_genre):
+    return int(label == selected_genre)
+
+from sklearn.metrics import f1_score
+
+
+def acc_and_f1(preds, labels):
+    assert len(preds) == len(labels)
+    acc = simple_accuracy(preds, labels)
+    f1 = f1_score(y_true=labels, y_pred=preds)
+    return {
+        "acc": acc,
+        "f1": f1,
+        "acc_and_f1": (acc + f1) / 2,
+    }
+
+
+def simple_accuracy(preds, labels):
+    return (preds == labels).mean()
+
+
 def main():
 
     parser = HfArgumentParser(
@@ -175,7 +197,7 @@ def main():
             and not train_args.overwrite_output_dir
     ):
         last_checkpoint = get_last_checkpoint(train_args.output_dir)
-    if last_checkpoint is None and len(os.listdir(train_args.output_dir)) > 0:
+    if last_checkpoint is None and len(os.listdir(train_args.output_dir)) > 0 and not train_args.overwrite_output_dir:
         raise ValueError(
             f"Output directory ({train_args.output_dir}) already exists and is not empty. "
             "Use --overwrite_output_dir to overcome."
@@ -217,33 +239,30 @@ def main():
         trainer.save_metrics("eval", metrics)
 
     elif train_args.do_predict:
+        output_predict_file = os.path.join(train_args.output_dir, "pred_results.txt")
         logger.info("*** Predict ***")
 
         outputs = trainer.predict(test_dataset=valid_dataset)
 
-        def label_to_binary(label, selected_genre):
-           return int(label == selected_genre)
-        logger.info("*** binary classification result ***")
-        from sklearn.metrics import f1_score
-        def acc_and_f1(preds, labels):
-            assert len(preds) == len(labels)
-            acc = simple_accuracy(preds, labels)
-            f1 = f1_score(y_true=labels, y_pred=preds)
-            return {
-                "acc": acc,
-                "f1": f1,
-                "acc_and_f1": (acc + f1) / 2,
-            }
-        def simple_accuracy(preds, labels):
-                return (preds == labels).mean()
-        for genre in label_to_int.keys():
-            binary_prediction = np.array(list(map(lambda x: label_to_binary(x, selected_genre=label_to_int[genre]), np.argmax(outputs.predictions, axis=1))))
-            binary_label_ids = np.array(list(map(lambda x: label_to_binary(x, selected_genre=label_to_int[genre]), outputs.label_ids)))
-
-            results = acc_and_f1(binary_prediction, binary_label_ids)
-            logger.info(f"***** genre {genre} *****")
-            for key, value in sorted(results.items()):
+        with open(output_predict_file, "w") as writer:
+            logger.info("*** 4-class classification result ***")
+            writer.write("*** 4-class classification result ***\n")
+            for key, value in sorted(outputs.metrics.items()):
+                writer.write(f"{key} = {value}\n")
                 logger.info(f"  {key} = {value}")
+
+            logger.info("*** binary classification result ***")
+            writer.write("*** binary classification result ***\n")
+            for genre in label_to_int.keys():
+                binary_prediction = np.array(list(map(lambda x: label_to_binary(x, selected_genre=label_to_int[genre]), np.argmax(outputs.predictions, axis=1))))
+                binary_label_ids = np.array(list(map(lambda x: label_to_binary(x, selected_genre=label_to_int[genre]), outputs.label_ids)))
+
+                results = acc_and_f1(binary_prediction, binary_label_ids)
+                logger.info(f"***** genre {genre} *****")
+                writer.write(f"***** genre {genre} *****\n")
+                for key, value in sorted(results.items()):
+                    writer.write(f"{key} = {value}\n")
+                    logger.info(f"  {key} = {value}")
 
 if __name__ == '__main__':
     main()

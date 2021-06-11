@@ -25,7 +25,7 @@ from control.arguments import (
     GenerationArguments
 )
 from control.utils import (
-    set_seed, clean_text, write_sent
+    set_seed, clean_text, write_sent, write_df
 )
 from control.dataset import (
     load_and_cache_examples_train,
@@ -68,10 +68,8 @@ def evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset):
         tokenizer=tokenizer,
         mlm=False,
     )
-
-    eval_sampler = RandomSampler(eval_dataset)
     eval_dataloader = DataLoader(
-        eval_dataset, sampler=eval_sampler, batch_size=train_args.eval_batch_size, collate_fn=data_collator
+        eval_dataset, batch_size=train_args.eval_batch_size, collate_fn=data_collator
     )
 
     # Eval
@@ -150,9 +148,8 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval
         mlm=False,
     )
 
-    eval_sampler = RandomSampler(eval_dataset)
     eval_dataloader = DataLoader(
-        eval_dataset, sampler=eval_sampler, batch_size=train_args.eval_batch_size, collate_fn=data_collator
+        eval_dataset, batch_size=train_args.eval_batch_size, collate_fn=data_collator
     )
     generated_sequences = []
 
@@ -199,7 +196,8 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval
         logger.info("  %s = %s", key, str(result[key]))
 
     save_path = os.path.join(train_args.output_dir, f"epoch_{epoch}")
-    write_sent(generated_sequences, os.path.join(save_path, f"result_beam_{epoch}.txt"))
+    write_sent(generated_sequences, os.path.join(save_path, f"result_{epoch}.txt"))
+    write_df(generated_sequences, data_args, os.path.join(save_path, f"result_{epoch}.tsv"))
     return result
 
 
@@ -336,8 +334,8 @@ def main():
     # Set seed
     set_seed(train_args.seed)
 
-    tokenizer = GPT2Tokenizer.from_pretrained(model_args.model_name_or_path)
-    tokenizer.pad_token = tokenizer.eos_token # gpt2 does not have pad token at first.
+    tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-2.7B", bos_token='<|endoftext|>',
+                                              eos_token='<|endoftext|>', pad_token='<|pad|>')
 # ###
 #     special_tokens_dict = {
 #         # "pad_token": "[PAD]",
