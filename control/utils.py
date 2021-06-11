@@ -32,4 +32,4 @@ def write_sent(sents, path):
             f.write(s + '\n')
 
 def clean_text(text):
-    return text.strip().replace("<s>", "").replace("<|endoftext|>", "").replace("<unk>", "")
+    return text.strip().replace("<s>", "").replace("<|endoftext|>", "").replace("<unk>", "").replace("\n", "")

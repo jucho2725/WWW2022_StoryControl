@@ -25,8 +25,8 @@ class GPT2SupConModel(GPT2PreTrainedModel):
         super(GPT2SupConModel, self).__init__(config)
         self.model = model
         self._encoder = GPT2ForSequenceEncoder(config, model)
-        # self._criterion = SupConLoss(temperature=config.temperature)
-        self._criterion = ContrastiveLoss()
+        self._criterion = SupConLoss(temperature=config.temperature)
+        # self._criterion = ContrastiveLoss()
 
 
     def forward(self, batch_input1, batch_input2, labels):

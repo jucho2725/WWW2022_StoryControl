@@ -1,9 +1,6 @@
 import logging
 import os
-import time
-from typing import Optional, Tuple
-
-
+from dataclasses import asdict
 from tqdm.auto import tqdm
 import torch
 from torch.utils.data import DataLoader, RandomSampler
@@ -49,21 +46,20 @@ import wandb
 logger = logging.getLogger(__name__)
 
 
-def evaluate(model, tokenizer, data_args, model_args, train_args, gen_args):
+def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args):
     # ppl
     results = {}
 
-    result = evaluate_ppl(data_args, train_args, model, tokenizer)
+    result = evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset)
     results.update(result)
 
-    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer)
+    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset)
     results.update(result)
     return results
 
 # evaluate perplexity
-def evaluate_ppl(data_args, train_args, model, tokenizer):
+def evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset):
     eval_output_dir = train_args.output_dir
-    eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
 
     if train_args.local_rank in [-1, 0]:
         os.makedirs(eval_output_dir, exist_ok=True)
@@ -92,7 +88,7 @@ def evaluate_ppl(data_args, train_args, model, tokenizer):
             batch = {k: v.to(train_args.device) for k, v in batch.items()}
 
         with torch.no_grad():
-            outputs = model(**batch)
+            outputs = model.generater(**batch)
             loss = outputs.loss
             loss = loss / train_args.gradient_accumulation_steps
             eval_loss += loss.mean().item()
@@ -144,10 +140,8 @@ def count_ngram(text_samples, n, tokenizer=None):
 
 
 # evaluate Dist-K scores
-def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer,):
+def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset, epoch="none"):
     eval_output_dir = train_args.output_dir
-    eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
-
     if train_args.local_rank in [-1, 0]:
         os.makedirs(eval_output_dir, exist_ok=True)
 
@@ -175,17 +169,10 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer,):
             batch = {k: v.to(train_args.device) for k, v in batch.items()}
 
         with torch.no_grad():
-            output_sequences = model.generate(input_ids=batch['input_ids'],
+            output_sequences = model.generater.generate(input_ids=batch['input_ids'],
                                               attention_mask=batch['attention_mask'],
                                               max_length=data_args.max_seq_length,
-                                              temperature=gen_args.temperature,
-                                              top_k=gen_args.top_k,
-                                              top_p=gen_args.top_p,
-                                              pad_token_id=tokenizer.eos_token_id,
-                                              eos_token_id=tokenizer.eos_token_id,
-                                              repetition_penalty=1.1,
-                                              do_sample=gen_args.do_sample,
-                                              num_return_sequences=gen_args.num_return_sequences, )
+                                              **asdict(gen_args))
             if len(output_sequences.shape) > 2:
                 output_sequences.squeeze_()
 
@@ -211,12 +198,12 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer,):
     for key in sorted(result.keys()):
         logger.info("  %s = %s", key, str(result[key]))
 
-
-    write_sent(generated_sequences, os.path.join(train_args.output_dir, "result_beam.txt"))
+    save_path = os.path.join(train_args.output_dir, f"epoch_{epoch}")
+    write_sent(generated_sequences, os.path.join(save_path, f"result_beam_{epoch}.txt"))
     return result
 
 
-def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, model_args, train_args, gen_args):
+def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, data_args, model_args, train_args, gen_args):
     data_collator = DataCollatorForSCL(tokenizer)
     t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
     
@@ -285,26 +272,30 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
                 wandb.log({"Train SCL Loss": encoder_loss.mean().item()})
                 wandb.log({'learning_rate': optimizer.param_groups[0]['lr']})
 
-        model.module.save_pretrained(train_args.output_dir)
-        tokenizer.save_pretrained(train_args.output_dir)
-        print("evaluation start", train_args.evaluation_strategy)
-        if train_args.evaluation_strategy == "epoch":
+        save_path = os.path.join(train_args.output_dir, f"epoch_{now_epoch}")
+        os.makedirs(save_path, exist_ok=True)
+        if train_args.n_gpu > 1:
+            model.module.save_pretrained(save_path)
+        else:
+            model.save_pretrained(save_path)
+        tokenizer.save_pretrained(save_path)
+
+        if train_args.do_eval:
             results = {}
             if train_args.evaluation_metric == "ppl" or train_args.evaluation_metric == "both":
                 logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
                 if train_args.n_gpu > 1:
-                    result = evaluate_ppl(data_args, train_args, model.module.generater, tokenizer)
+                    result = evaluate_ppl(data_args, train_args, model.module, tokenizer, eval_dataset)
                 else:
-                    result = evaluate_ppl(data_args, train_args, model.generater, tokenizer)
+                    result = evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset)
                 results.update(result)
             if train_args.evaluation_metric == "dist" or train_args.evaluation_metric == "both":
-                if (now_epoch + 1) % 10 == 0:
-                    logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
-                    if train_args.n_gpu > 1:
-                        result = evaluate_dist_scores(data_args, train_args, gen_args, model.module.generater, tokenizer)
-                    else:
-                        result = evaluate_dist_scores(data_args, train_args, gen_args, model.generater, tokenizer)
-                    results.update(result)
+                logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
+                if train_args.n_gpu > 1:
+                    result = evaluate_dist_scores(data_args, train_args, gen_args, model.module, tokenizer, eval_dataset, epoch=now_epoch)
+                else:
+                    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset, epoch=now_epoch)
+                results.update(result)
 
             for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
@@ -312,7 +303,10 @@ def train(train_dataset, tokenizer, model, optimizer, scheduler, data_args, mode
 
 
     # save the last model
-    model.module.save_pretrained(train_args.output_dir)
+    if train_args.n_gpu > 1:
+        model.module.save_pretrained(train_args.output_dir)
+    else:
+        model.save_pretrained(train_args.output_dir)
     tokenizer.save_pretrained(train_args.output_dir)
 
     return global_step, tr_loss / global_step
@@ -322,7 +316,7 @@ def main():
         (ModelArguments, DataArguments, TrainingArguments, GenerationArguments)
     )
     model_args, data_args, train_args, gen_args = parser.parse_args_into_dataclasses()
-    setattr(train_args, 'output_dir', f"../outputs/scl{model_args.scl_weight*100}_tau{model_args.tau*100}")
+    setattr(train_args, 'output_dir', f"./outputs/scl{int(model_args.scl_weight*100)}_tau{int(model_args.tau*100)}")
 
     # Setup logging
     logging.basicConfig(
@@ -344,11 +338,13 @@ def main():
 
     tokenizer = GPT2Tokenizer.from_pretrained(model_args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token # gpt2 does not have pad token at first.
-    special_tokens_dict = {
-        # "pad_token": "[PAD]",
-        "additional_special_tokens": ['[MALE]', '[FEMALE]', '[NEUTRAL]'],
-    }
-    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
+# ###
+#     special_tokens_dict = {
+#         # "pad_token": "[PAD]",
+#         "additional_special_tokens": ['[MALE]', '[FEMALE]', '[NEUTRAL]'],
+#     }
+#     num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
+# ###
     config = GPT2Config.from_pretrained(model_args.model_name_or_path)
     # set more attr #
     setattr(config, 'f_embd', 768)
@@ -361,11 +357,19 @@ def main():
         config=config,
     )
     model = model.to(train_args.device)
-    model.resize_token_embeddings(len(tokenizer))
+# ###
+#     model.generater.resize_token_embeddings(len(tokenizer))
+#     # issue https://github.com/huggingface/transformers/issues/8039
+#     unk_tok_emb = model.generater.transformer.wte.weight.data[50256, :]
+#     for i in range(num_added_toks):
+#         model.generater.transformer.wte.weight.data[-(i+1), :] = unk_tok_emb
+# ###
 
     if train_args.do_train:
         logger.info("***** Load dataset *****")
         train_dataset, origin_dataset = load_and_cache_examples_train(data_args, tokenizer)
+        if train_args.evaluation_first or train_args.do_eval or train_args.evaluation_metric:
+            eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
         t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
         print(tokenizer.decode(train_dataset[0]['origin']['input_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True))
         logger.info("***** Load optimizer *****")
@@ -378,7 +382,7 @@ def main():
             },
             {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], "weight_decay": 0.0},
         ]
-        
+
         optimizer = Lamb(optimizer_grouped_parameters,  lr=train_args.learning_rate, eps=train_args.adam_epsilon)
         scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps=train_args.warmup_steps, num_training_steps=t_total
@@ -405,7 +409,7 @@ def main():
         # Load pretrained model and tokenizer
         if train_args.local_rank not in [-1, 0]:
             torch.distributed.barrier()  # Barrier to make sure only the first process in distributed training download model & vocab
-        
+
         # weight and bias monitoring
         wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         wandb.watch(model, log_freq=20)
@@ -413,28 +417,33 @@ def main():
         if train_args.evaluation_first:
             logger.info("***** Running evaluation *****")
             if train_args.n_gpu > 1:  # case of dist training
-                results = evaluate(model.module.generater, tokenizer, data_args, model_args, train_args, gen_args, )
+                results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, )
             else:
-                results = evaluate(model.generater, tokenizer, data_args, model_args, train_args, gen_args, )
+                results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, )
             for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
                 if train_args.do_train:
                     wandb.log({f"{key}": value})
 
-        global_step, tr_avg_loss = train(train_dataset, tokenizer, model, optimizer, scheduler,
+        global_step, tr_avg_loss = train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler,
                                         data_args, model_args, train_args, gen_args, )
         logger.info(" global_step = %s, average loss = %s", global_step, tr_avg_loss)
 
 
 
-    if train_args.do_eval:
+    elif train_args.do_eval or train_args.do_predict:
+        eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
         logger.info("***** Running evaluation *****")
-        if train_args.n_gpu > 1: # case of dist training
-            results = evaluate(model.module.generater, tokenizer, data_args, model_args, train_args, gen_args,)
-        else:
-            results = evaluate(model.generater, tokenizer, data_args, model_args, train_args, gen_args,)
 
-        output_eval_file = os.path.join(train_args.output_dir, "eval_results.txt")
+        if train_args.n_gpu > 1: # case of dist training
+            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,)
+        else:
+            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,)
+
+        if train_args.do_eval:
+            output_eval_file = os.path.join(train_args.output_dir, "eval_results.txt")
+        else:
+            output_eval_file = os.path.join(train_args.output_dir, "pred_results.txt")
 
         with open(output_eval_file, "w") as writer:
             logger.info("***** Eval results *****")

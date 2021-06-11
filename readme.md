@@ -2,7 +2,7 @@
 
 ## 소개
 
-AIIDE 2021 story control
+ICIDS 2021 story control
 
 ## 설치 방법
 

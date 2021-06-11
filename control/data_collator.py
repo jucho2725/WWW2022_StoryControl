@@ -106,20 +106,20 @@ class DataCollatorForSCL:
 
         org_id = [ex['origin']['input_ids'] for ex in batch]
         org_attn = [ex['origin']['attention_mask'] for ex in batch]
-        aug_de_id = [ex['aug_de']['input_ids'] for ex in batch]
-        aug_de_attn = [ex['aug_de']['attention_mask'] for ex in batch]
-        aug_ru_id = [ex['aug_ru']['input_ids'] for ex in batch]
-        aug_ru_attn = [ex['aug_ru']['attention_mask'] for ex in batch]
+        aug_de_id = [ex['aug_09']['input_ids'] for ex in batch]
+        aug_de_attn = [ex['aug_09']['attention_mask'] for ex in batch]
+        aug_ru_id = [ex['aug_05']['input_ids'] for ex in batch]
+        aug_ru_attn = [ex['aug_05']['attention_mask'] for ex in batch]
         
         collated_batch = {'origin': {},
-                            'aug_de': {},
-                            'aug_ru': {}}
+                            'aug_09': {},
+                            'aug_05': {}}
         collated_batch['origin']['input_ids']      = self.pad(org_id)
         collated_batch['origin']['attention_mask'] = self.pad(org_attn)
-        collated_batch['aug_de']['input_ids']      = self.pad(aug_de_id)
-        collated_batch['aug_de']['attention_mask'] = self.pad(aug_de_attn)
-        collated_batch['aug_ru']['input_ids']      = self.pad(aug_ru_id)
-        collated_batch['aug_ru']['attention_mask'] = self.pad(aug_ru_attn)
+        collated_batch['aug_09']['input_ids']      = self.pad(aug_de_id)
+        collated_batch['aug_09']['attention_mask'] = self.pad(aug_de_attn)
+        collated_batch['aug_05']['input_ids']      = self.pad(aug_ru_id)
+        collated_batch['aug_05']['attention_mask'] = self.pad(aug_ru_attn)
         collated_batch['labels'] = torch.stack([ex['labels'] for ex in batch])
         return collated_batch
 
