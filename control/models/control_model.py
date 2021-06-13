@@ -26,4 +26,3 @@ class SupConGPT2(GPT2PreTrainedModel):
 
         return nll_loss, scl_loss
 
-

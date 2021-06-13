@@ -196,6 +196,7 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval
         logger.info("  %s = %s", key, str(result[key]))
 
     save_path = os.path.join(train_args.output_dir, f"epoch_{epoch}")
+    os.makedirs(save_path, exist_ok=True)
     write_sent(generated_sequences, os.path.join(save_path, f"result_{epoch}.txt"))
     write_df(generated_sequences, data_args, os.path.join(save_path, f"result_{epoch}.tsv"))
     return result
@@ -270,7 +271,7 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
                 wandb.log({"Train SCL Loss": encoder_loss.mean().item()})
                 wandb.log({'learning_rate': optimizer.param_groups[0]['lr']})
 
-        save_path = os.path.join(train_args.output_dir, f"epoch_{now_epoch}")
+        save_path = os.path.join(train_args.output_dir, f"epoch_{now_epoch}/")
         os.makedirs(save_path, exist_ok=True)
         if train_args.n_gpu > 1:
             model.module.save_pretrained(save_path)
@@ -314,8 +315,11 @@ def main():
         (ModelArguments, DataArguments, TrainingArguments, GenerationArguments)
     )
     model_args, data_args, train_args, gen_args = parser.parse_args_into_dataclasses()
-    setattr(train_args, 'output_dir', f"./outputs/scl{int(model_args.scl_weight*100)}_tau{int(model_args.tau*100)}")
 
+    if data_args.no_genre:
+        setattr(train_args, 'output_dir', f"./outputs/gpt2_finetune")
+    else:
+        setattr(train_args, 'output_dir', f"./outputs/scl{int(model_args.scl_weight * 100)}_tau{int(model_args.tau * 100)}")
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -360,7 +364,7 @@ def main():
 # ###
     model.generater.resize_token_embeddings(len(tokenizer))
     # issue https://github.com/huggingface/transformers/issues/8039
-    unk_tok_emb = model.generater.transformer.wte.weight.data[50256, :]
+    unk_tok_emb = model.generater.transformer.wte.weight.data[tokenizer.unk_token_id, :]
     for i in range(num_added_toks):
         model.generater.transformer.wte.weight.data[-(i+1), :] = unk_tok_emb
 # ###
@@ -414,7 +418,8 @@ def main():
 
         logger.info("***** Running training *****")
         logger.info(f"***** Genre training {not data_args.no_genre} *****")
-        wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
+        # wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
+        wandb.init(project="aiide_storycontrol", name=f"0612_gpt2", resume=True)
         wandb.watch(model, log_freq=20)
         if train_args.evaluation_first:
             logger.info("***** Running evaluation *****")
@@ -424,8 +429,7 @@ def main():
                 results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, )
             for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
-                if train_args.do_train:
-                    wandb.log({f"{key}": value})
+                wandb.log({f"{key}": value})
 
         global_step, tr_avg_loss = train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler,
                                         data_args, model_args, train_args, gen_args, )
