@@ -44,7 +44,7 @@ import wandb
 
 
 logger = logging.getLogger(__name__)
-
+logging.basicConfig(level=logging.INFO)
 
 def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args):
     # ppl
@@ -338,7 +338,7 @@ def main():
     # Set seed
     set_seed(train_args.seed)
     tokenizer = GPT2Tokenizer.from_pretrained(model_args.model_name_or_path)
-    tokenizer.pad_token = tokenizer.eos_token
+    # tokenizer.pad_token = tokenizer.eos_token
 #     tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-2.7B", bos_token='<|endoftext|>',
 #                                               eos_token='<|endoftext|>', pad_token='<|pad|>')
 # ###
@@ -418,8 +418,8 @@ def main():
 
         logger.info("***** Running training *****")
         logger.info(f"***** Genre training {not data_args.no_genre} *****")
-        # wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
-        wandb.init(project="aiide_storycontrol", name=f"0612_gpt2", resume=True)
+        wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
+        # wandb.init(project="aiide_storycontrol", name=f"0612_gpt2", resume=True)
         wandb.watch(model, log_freq=20)
         if train_args.evaluation_first:
             logger.info("***** Running evaluation *****")

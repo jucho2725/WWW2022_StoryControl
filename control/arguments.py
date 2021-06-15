@@ -627,7 +627,7 @@ class TrainingArguments:
         # Make sure `self._n_gpu` is properly setup.
         _ = self._setup_devices
         return self._n_gpu
-
+        # return torch.cuda.device_count()
     @property
     @torch_required
     def parallel_mode(self):
