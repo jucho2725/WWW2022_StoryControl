@@ -74,7 +74,7 @@ class BackTranslationAug(WordAugmenter):
     def substitute(self, data):
         if not data:
             return data
-        augmented_text = self.model.predict(data, sampling=True, temperature=0.5)
+        augmented_text = self.model.predict(data, sampling=True, temperature=0.9)
         return augmented_text
 
     @classmethod

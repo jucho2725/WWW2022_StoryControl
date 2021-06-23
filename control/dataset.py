@@ -84,19 +84,30 @@ def load_and_cache_examples_train(data_args, tokenizer):
         model_inputs_final['origin']['attention_mask'] =  model_inputs['attention_mask'] if data_args.no_genre\
             else [1] + model_inputs['attention_mask']
 
-        # augmented input en-de
+        # augmented input 09
         model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)
-        model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-            else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-            else [1] + model_inputs['attention_mask']
-        # augmented input en-ru
+        # model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
+        #     else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
+        # model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
+        #     else [1] + model_inputs['attention_mask']
+
+        #### no genre ####
+        model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids']
+        model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask']
+
+        # augmented input 05
         model_inputs = tokenizer(inputs_05, truncation=True, padding=padding, max_length=max_source_length)
-        model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-            else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-            else [1] + model_inputs['attention_mask']
-        
+        # model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
+        #     else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
+        # model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
+        #     else [1] + model_inputs['attention_mask']
+        model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids']
+        model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask']
+
+        #### neg ####
+
+
+
         return model_inputs_final
 
     columns_to_return = ['origin', 'aug_09', 'aug_05', 'labels']

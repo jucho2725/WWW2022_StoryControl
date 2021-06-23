@@ -140,45 +140,42 @@ class ContrastiveLoss(nn.Module):
 
 
     def forward(self, features, labels):
-        print(f"before sample {features.shape} {labels.shape}")
+        # print(f"before sample {features.shape} {labels.shape}") # 8 2 768 || 8
         features, labels = self.make_samples(features, labels)
-        print(f"after sample {features.shape} {labels.shape}")
+        # print(f"after sample {features.shape} {labels.shape}") # 80 2 768 || 80
         rep_anchor = features[:, 0]
         rep_other = features[:, 1]
         distances = self.distance_metric(rep_anchor, rep_other)
-        print(f"distance {distances.shape}")
+
         losses = 0.5 * (labels.float() * distances.pow(2) + (1 - labels).float() * F.relu(self.margin - distances).pow(2))
-        print(f"loss {losses.shape}")
-        print(여기)
         return losses.mean() if self.size_average else losses.sum()
 
 
+    # contrast pos pos'
     def make_samples(self, features, labels):
         batch_size = features.size()[0]
         reconst = []
         re_labels = []
+
         for i in range(batch_size):
-            anchor = features[i][0] # emb
-            print(f"anchor {anchor.shape}")
-            temp = torch.stack([anchor, features[i][1]]) # 2 emb
-            print(f"inside i stack with anchor tmp {temp.shape}")
-            reconst.append(temp)
-            re_labels.append(1) # pos
+            anchor_pos1 = features[i][0]  # anchor emb
+            anchor_pos2 = features[i][1]
             anchor_label = labels[i]
-            for j in range(i, batch_size):
-                temp = torch.stack([anchor, features[j][0]]) # 2 emb
-                print(f"inside j 1st tmp {temp.shape}")
-                reconst.append(temp)
-                for _ in range(2):
-                    if anchor_label != labels[j]:
-                        re_labels.append(0)
-                    else:
-                        re_labels.append(0)
-                temp = torch.stack([anchor, features[j][1]]) # 2 emb
-                print(f"inside j 2nd tmp {temp.shape}")
-                reconst.append(temp)
+
+            reconst.append(torch.stack([anchor_pos1, anchor_pos2]))  # A A' 과 같이 pos 쌍 들어감
+            re_labels.append(1)  # pos
+
+            for j in range(i + 1, batch_size):
+                reconst.append(torch.stack([anchor_pos1, features[j][0]]))
+                reconst.append(torch.stack([anchor_pos1, features[j][1]]))
+                reconst.append(torch.stack([anchor_pos2, features[j][0]]))
+                reconst.append(torch.stack([anchor_pos2, features[j][1]]))
+                if anchor_label == labels[j]:
+                    re_labels.extend([1, 1, 1, 1])
+                else:
+                    re_labels.extend([0, 0, 0, 0])
+
         reconst = torch.stack(reconst).to(self.device)
-        print(f"final reconst shape {reconst.shape}")
         labels = torch.tensor(re_labels, dtype=torch.float).to(self.device)
-    
+
         return reconst, labels

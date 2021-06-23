@@ -25,21 +25,24 @@ class GPT2SupConModel(GPT2PreTrainedModel):
         super(GPT2SupConModel, self).__init__(config)
         self.model = model
         self._encoder = GPT2ForSequenceEncoder(config, model)
-        self._criterion = SupConLoss(temperature=config.temperature)
-        # self._criterion = ContrastiveLoss()
+        # self._criterion = SupConLoss(temperature=config.temperature)
+        self._criterion = ContrastiveLoss()
 
 
-    def forward(self, batch_input1, batch_input2, labels):
-        f1 = self._encoder(**batch_input1)
-        f2 = self._encoder(**batch_input2)
-        features = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
+    def forward(self, batch_input1, batch_input2, batch_input3, labels, neg_labels):
+        f_pos1 = self._encoder(**batch_input1)
+        f_pos2 = self._encoder(**batch_input2)
+        f_neg = self._encoder(**batch_input3)
+        features = torch.cat([f_pos1.unsqueeze(1),
+                              f_pos2.unsqueeze(1),
+                              f_neg.unsqueeze(1)], dim=1)
 
         loss = self._criterion(features, labels)
-
         return SequenceOutput(
             loss=loss,
-            feature1=f1,
-            feature2=f2,
+            feature_pos1=f_pos1,
+            feature_pos2=f_pos2,
+            feature_neg = f_neg
         )
 
 @dataclass
@@ -47,13 +50,15 @@ class SequenceOutput(ModelOutput):
     """
     Args:
         loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, 
-        feature1 (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
-        feature2 (:obj:`tuple(tupel(torch.FloatTensor))`, `optional`,
+        feature_pos1 (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
+        feature_pos2 (:obj:`tuple(tupel(torch.FloatTensor))`, `optional`,
+        feature_neg
     """
 
     loss: Optional[torch.FloatTensor] = None
-    feature1: torch.FloatTensor = None
-    feature2: torch.FloatTensor = None
+    feature_pos1: torch.FloatTensor = None
+    feature_pos2: torch.FloatTensor = None
+    feature_neg: torch.FloatTensor = None
 
 class GPT2ForSequenceEncoder(GPT2PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"h\.\d+\.attn\.masked_bias", r"lm_head\.weight"]
@@ -125,14 +130,9 @@ class GPT2ForSequenceEncoder(GPT2PreTrainedModel):
                     f"{self.__class__.__name__} will not detect padding tokens in `inputs_embeds`. Results may be "
                     f"unexpected if using padding tokens in conjunction with `inputs_embeds.`"
                 )
-        pooled_logits = hidden_state[range(batch_size), sequence_lengths]
-        # print("hidden", hidden_state.shape)
-        # print(pooled_logits.shape, range(batch_size), sequence_lengths)
+        pooled_logits = hidden_state[range(batch_size), sequence_lengths] # 마지막 토큰 풀링
         feature = self.encoder_head(pooled_logits)
-        # print(feature.shape)
         feature = F.normalize(feature, dim=1)
-        # print(feature.shape)
-        # print(여기)
         return feature
 
 
