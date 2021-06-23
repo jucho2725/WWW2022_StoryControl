@@ -374,6 +374,10 @@ def main():
         train_dataset, origin_dataset = load_and_cache_examples_train(data_args, tokenizer)
         if train_args.evaluation_first or train_args.do_eval or train_args.evaluation_metric:
             eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
+
+        # train_dataset = train_dataset.select(range(20))
+        # eval_dataset = eval_dataset.select(range(8))
+
         t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
         print(tokenizer.decode(train_dataset[0]['origin']['input_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True))
         logger.info("***** Load optimizer *****")

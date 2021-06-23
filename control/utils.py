@@ -37,6 +37,7 @@ def clean_text(text):
 
 def write_df(sents, data_args, path):
     df = pd.read_csv(data_args.eval_data_file, sep='\t')
+    # df = df.sample(n=8)
     df['original'] = df['content']
     df['content'] = sents
     df.to_csv(path, index=False, sep='\t')

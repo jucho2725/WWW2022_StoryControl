@@ -69,13 +69,16 @@ def load_and_cache_examples_train(data_args, tokenizer):
         inputs = examples['content']
         inputs_09 = examples['content_aug_09']
         inputs_05 = examples['content_aug_05']
+        inputs_neg = examples['content_neg']
         genre = examples['genre']
 
         model_inputs_final = {'origin': {},
                                 'aug_09': {},
-                                'aug_05': {}}
+                                'aug_05': {},
+                              'aug_neg':{}}
 
         model_inputs_final['labels'] = label_to_int[examples['genre']]
+        model_inputs_final['neg_labels'] = label_to_int[examples['content_neg_genre']]
 
         # original input
         model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=max_source_length)
@@ -86,31 +89,22 @@ def load_and_cache_examples_train(data_args, tokenizer):
 
         # augmented input 09
         model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)
-        # model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-        #     else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        # model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-        #     else [1] + model_inputs['attention_mask']
-
-        #### no genre ####
         model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids']
         model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask']
 
         # augmented input 05
         model_inputs = tokenizer(inputs_05, truncation=True, padding=padding, max_length=max_source_length)
-        # model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-        #     else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        # model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-        #     else [1] + model_inputs['attention_mask']
         model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids']
         model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask']
 
         #### neg ####
-
-
+        model_inputs = tokenizer(inputs_neg, truncation=True, padding=padding, max_length=max_source_length)
+        model_inputs_final['aug_neg']['input_ids'] = model_inputs['input_ids']
+        model_inputs_final['aug_neg']['attention_mask'] = model_inputs['attention_mask']
 
         return model_inputs_final
 
-    columns_to_return = ['origin', 'aug_09', 'aug_05', 'labels']
+    columns_to_return = ['origin', 'aug_09', 'aug_05', 'aug_neg', 'labels', 'neg_labels']
 
     preprocessing_num_workers = int(mp.cpu_count() / 2)
 
