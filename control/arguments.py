@@ -500,7 +500,7 @@ class TrainingArguments:
         if self.deepspeed:
             # - must be run very last in arg parsing, since it will use a lot of these settings.
             # - must be run before the model is created.
-            from transformers.integrations import HfTrainerDeepSpeedConfig
+            from transformers.deepspeed import HfTrainerDeepSpeedConfig
 
             # will be used later by the Trainer
             # note: leave self.deepspeed unmodified in case a user relies on it not to be modified)
@@ -568,7 +568,7 @@ class TrainingArguments:
             # deepspeed  ./program.py
             # rather than:
             # python -m torch.distributed.launch --nproc_per_node=2 ./program.py
-            from transformers.integrations import is_deepspeed_available
+            from transformers.deepspeed import is_deepspeed_available
 
             if not is_deepspeed_available():
                 raise ImportError("--deepspeed requires deepspeed: `pip install deepspeed`.")
@@ -619,7 +619,6 @@ class TrainingArguments:
     def n_gpu(self):
         """
         The number of GPUs used by this process.
-
         Note:
             This will only be greater than one when you have multiple GPUs available but are not using distributed
             training. For distributed training, it will always be 1.
@@ -627,13 +626,12 @@ class TrainingArguments:
         # Make sure `self._n_gpu` is properly setup.
         _ = self._setup_devices
         return self._n_gpu
-        # return torch.cuda.device_count()
+
     @property
     @torch_required
     def parallel_mode(self):
         """
         The current mode used for parallelism if multiple GPUs/TPU cores are available. One of:
-
         - :obj:`ParallelMode.NOT_PARALLEL`: no parallelism (CPU or one GPU).
         - :obj:`ParallelMode.NOT_DISTRIBUTED`: several GPUs in one single process (uses :obj:`torch.nn.DataParallel`).
         - :obj:`ParallelMode.DISTRIBUTED`: several GPUs, each having its own process (uses
@@ -758,7 +756,6 @@ class TrainingArguments:
             valid_types.append(torch.Tensor)
 
         return {k: v if type(v) in valid_types else str(v) for k, v in d.items()}
-
 
 class ParallelMode(Enum):
     NOT_PARALLEL = "not_parallel"

@@ -453,7 +453,7 @@ def main():
         if train_args.do_eval:
             output_eval_file = os.path.join(train_args.output_dir, "eval_results.txt")
         else:
-            output_eval_file = os.path.join(train_args.output_dir, "pred_results.txt")
+            output_eval_file = os.path.join(train_args.output_dir, "scrap/pred_results.txt")
 
         with open(output_eval_file, "w") as writer:
             logger.info("***** Eval results *****")
