@@ -20,8 +20,13 @@ class SupConGPT2(GPT2PreTrainedModel):
         nll_loss = gen_output.loss
 
         # scl loss from encoder
-        batch_09, batch_05, batch_neg = batch['aug_09'], batch['aug_05'], batch['aug_neg']
-        encoder_output = self.encoder(batch_09, batch_05, batch_neg, labels=batch['labels'], neg_labels=batch['neg_labels'])
+        if 'aug_neg' not in batch.keys():
+            batch_09, batch_05 = batch['aug_09'], batch['aug_05']
+            encoder_output = self.encoder(batch_09, batch_05, labels=batch['labels'])
+        else:
+            batch_09, batch_05, batch_neg = batch['aug_09'], batch['aug_05'], batch['aug_neg']
+            encoder_output = self.encoder(batch_09, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
+
         scl_loss = encoder_output.loss
 
         return nll_loss, scl_loss

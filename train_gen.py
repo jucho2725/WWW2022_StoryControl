@@ -41,6 +41,7 @@ from control.evaluation import (
 from apex import amp
 from torch_optimizer import Lamb
 import wandb
+import pandas as pd
 
 
 logger = logging.getLogger(__name__)
@@ -316,6 +317,14 @@ def main():
     )
     model_args, data_args, train_args, gen_args = parser.parse_args_into_dataclasses()
 
+
+    if data_args.hard_negative:
+        df = pd.read_csv(filepath_or_buffer=data_args.train_data_file, sep='\t', index_col=False)
+        assert 'content_neg' in df.columns, "You must include negatives in dataset"
+        print("************************ HARD NEGATIVE data ************************")
+    else:
+        print("************************ NORMAL data ************************")
+
     if data_args.no_genre:
         setattr(train_args, 'output_dir', f"./outputs/gpt2_finetune")
     else:
@@ -422,7 +431,7 @@ def main():
 
         logger.info("***** Running training *****")
         logger.info(f"***** Genre training {not data_args.no_genre} *****")
-        wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
+        wandb.init(project="aaai_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         # wandb.init(project="aiide_storycontrol", name=f"0612_gpt2", resume=True)
         wandb.watch(model, log_freq=20)
         if train_args.evaluation_first:

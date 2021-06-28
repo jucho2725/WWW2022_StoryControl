@@ -29,21 +29,37 @@ class GPT2SupConModel(GPT2PreTrainedModel):
         self._criterion = ContrastiveLoss()
 
 
-    def forward(self, batch_input1, batch_input2, batch_input3, labels, neg_labels):
+    def forward(self, batch_input1, batch_input2, labels, batch_input3=None, neg_labels=None):
+        # None None of not None not None
+        assert (batch_input3 is not None and neg_labels is not None) or (batch_input3 is None and neg_labels is None)
+
         f_pos1 = self._encoder(**batch_input1)
         f_pos2 = self._encoder(**batch_input2)
-        f_neg = self._encoder(**batch_input3)
-        features = torch.cat([f_pos1.unsqueeze(1),
-                              f_pos2.unsqueeze(1),
-                              f_neg.unsqueeze(1)], dim=1)
 
-        loss = self._criterion(features, labels, neg_labels)
-        return SequenceOutput(
-            loss=loss,
-            feature_pos1=f_pos1,
-            feature_pos2=f_pos2,
-            feature_neg = f_neg
-        )
+        if batch_input3 is None and neg_labels is None:
+            features = torch.cat([f_pos1.unsqueeze(1),
+                                  f_pos2.unsqueeze(1),],
+                                 dim=1)
+            loss = self._criterion(features, labels)
+            return SequenceOutput(
+                loss=loss,
+                feature_pos1=f_pos1,
+                feature_pos2=f_pos2,
+            )
+        else:
+            f_neg = self._encoder(**batch_input3)
+            features = torch.cat([f_pos1.unsqueeze(1),
+                                  f_pos2.unsqueeze(1),
+                                  f_neg.unsqueeze(1)], dim=1)
+
+            loss = self._criterion(features, labels, neg_labels)
+            return SequenceOutput(
+                loss=loss,
+                feature_pos1=f_pos1,
+                feature_pos2=f_pos2,
+                feature_neg = f_neg
+            )
+
 
 @dataclass
 class SequenceOutput(ModelOutput):
