@@ -47,14 +47,14 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args):
+def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch):
     # ppl
     results = {}
 
     result = evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset)
     results.update(result)
 
-    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset)
+    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset, epoch=epoch)
     results.update(result)
     return results
 
@@ -280,7 +280,7 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
             model.save_pretrained(save_path)
         tokenizer.save_pretrained(save_path)
 
-        if train_args.do_eval:
+        if train_args.do_eval and train_args.evaluation_strategy == 'epoch':
             results = {}
             if train_args.evaluation_metric == "ppl" or train_args.evaluation_metric == "both":
                 logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
@@ -450,14 +450,14 @@ def main():
 
 
 
-    elif train_args.do_eval or train_args.do_predict:
+    if train_args.do_eval or train_args.do_predict:
         eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
         logger.info("***** Running evaluation *****")
 
         if train_args.n_gpu > 1: # case of dist training
-            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,)
+            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='last')
         else:
-            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,)
+            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='last')
 
         if train_args.do_eval:
             output_eval_file = os.path.join(train_args.output_dir, "eval_results.txt")

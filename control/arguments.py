@@ -164,7 +164,7 @@ class TrainingArguments:
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the dev set."})
     do_predict: bool = field(default=False, metadata={"help": "Whether to run predictions on the test set."})
-    evaluation_strategy: IntervalStrategy = field(
+    evaluation_strategy: str = field(
         default="no",
         metadata={"help": "The evaluation strategy to use."},
     )
@@ -428,23 +428,16 @@ class TrainingArguments:
         if self.disable_tqdm is None:
             self.disable_tqdm = logger.getEffectiveLevel() > logging.WARN
 
-        if isinstance(self.evaluation_strategy, EvaluationStrategy):
-            warnings.warn(
-                "using `EvaluationStrategy` for `evaluation_strategy` is deprecated and will be removed in version 5 of 🤗 Transformers. Use `IntervalStrategy` instead",
-                FutureWarning,
-            )
-            # Go back to the underlying string or we won't be able to instantiate `IntervalStrategy` on it.
-            self.evaluation_strategy = self.evaluation_strategy.value
 
-        self.evaluation_strategy = IntervalStrategy(self.evaluation_strategy)
-        self.logging_strategy = IntervalStrategy(self.logging_strategy)
-        self.save_strategy = IntervalStrategy(self.save_strategy)
-
+        # self.evaluation_strategy = IntervalStrategy(self.evaluation_strategy)
+        # self.logging_strategy = IntervalStrategy(self.logging_strategy)
+        # self.save_strategy = IntervalStrategy(self.save_strategy)
+        #
         self.lr_scheduler_type = SchedulerType(self.lr_scheduler_type)
-        if self.do_eval is False and self.evaluation_strategy != IntervalStrategy.NO:
-            self.do_eval = True
-        if self.eval_steps is None:
-            self.eval_steps = self.logging_steps
+        # if self.do_eval is False and self.evaluation_strategy != IntervalStrategy.NO:
+        #     self.do_eval = True
+        # if self.eval_steps is None:
+        #     self.eval_steps = self.logging_steps
 
         if self.load_best_model_at_end and self.metric_for_best_model is None:
             self.metric_for_best_model = "loss"
