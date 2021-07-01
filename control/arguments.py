@@ -59,6 +59,7 @@ class ModelArguments:
     )
 
 
+
 @dataclass
 class DataArguments:
     """
@@ -95,7 +96,7 @@ class DataArguments:
     no_genre: bool = field(default=False)
     ignore_pad_token_for_loss: bool = field(default=True)
     padding_in_preprocess: bool = field(default=True,)
-
+    hard_negative: bool = field(default=False)
 
 @dataclass
 class GenerationArguments:
@@ -119,6 +120,11 @@ class GenerationArguments:
     #
     no_repeat_ngram_size: int = field(default=4)
 
+@dataclass
+class DeepspeedArguments:
+    deepspeed_config: str = field(default="ds_config.json")
+    deepspeed: bool = field(default=False)
+
 
 def default_logdir() -> str:
     """
@@ -141,6 +147,7 @@ class TrainingArguments:
     line.
     Parameters: please check out transfomrers.src.transformers.training_args.py to see each parameters in detail.
     """
+
     output_dir: str = field(
         metadata={"help": "The output directory where the model predictions and checkpoints will be written."},
     )
@@ -157,7 +164,7 @@ class TrainingArguments:
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the dev set."})
     do_predict: bool = field(default=False, metadata={"help": "Whether to run predictions on the test set."})
-    evaluation_strategy: IntervalStrategy = field(
+    evaluation_strategy: str = field(
         default="no",
         metadata={"help": "The evaluation strategy to use."},
     )
@@ -346,12 +353,12 @@ class TrainingArguments:
                     "with the same syntax: zero_dp_2 auto_wrap` or `zero_dp_3 auto_wrap`.",
         },
     )
-    deepspeed: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Enable deepspeed and pass the path to deepspeed json config file (e.g. ds_config.json) or an already loaded json file as a dict"
-        },
-    )
+    # deepspeed: Optional[str] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": "Enable deepspeed and pass the path to deepspeed json config file (e.g. ds_config.json) or an already loaded json file as a dict"
+    #     },
+    # )
     label_smoothing_factor: float = field(
         default=0.0, metadata={"help": "The label smoothing epsilon to apply (zero means no label smoothing)."}
     )
@@ -401,6 +408,7 @@ class TrainingArguments:
         default="",
         metadata={"help": "Used by the SageMaker launcher to send mp-specific args. Ignored in Trainer"},
     )
+    deepspeed:bool = field(default=False)
 
     def __post_init__(self):
         # Handle --use_env option in torch.distributed.launch (local_rank not passed as an arg then).
@@ -420,23 +428,16 @@ class TrainingArguments:
         if self.disable_tqdm is None:
             self.disable_tqdm = logger.getEffectiveLevel() > logging.WARN
 
-        if isinstance(self.evaluation_strategy, EvaluationStrategy):
-            warnings.warn(
-                "using `EvaluationStrategy` for `evaluation_strategy` is deprecated and will be removed in version 5 of 🤗 Transformers. Use `IntervalStrategy` instead",
-                FutureWarning,
-            )
-            # Go back to the underlying string or we won't be able to instantiate `IntervalStrategy` on it.
-            self.evaluation_strategy = self.evaluation_strategy.value
 
-        self.evaluation_strategy = IntervalStrategy(self.evaluation_strategy)
-        self.logging_strategy = IntervalStrategy(self.logging_strategy)
-        self.save_strategy = IntervalStrategy(self.save_strategy)
-
+        # self.evaluation_strategy = IntervalStrategy(self.evaluation_strategy)
+        # self.logging_strategy = IntervalStrategy(self.logging_strategy)
+        # self.save_strategy = IntervalStrategy(self.save_strategy)
+        #
         self.lr_scheduler_type = SchedulerType(self.lr_scheduler_type)
-        if self.do_eval is False and self.evaluation_strategy != IntervalStrategy.NO:
-            self.do_eval = True
-        if self.eval_steps is None:
-            self.eval_steps = self.logging_steps
+        # if self.do_eval is False and self.evaluation_strategy != IntervalStrategy.NO:
+        #     self.do_eval = True
+        # if self.eval_steps is None:
+        #     self.eval_steps = self.logging_steps
 
         if self.load_best_model_at_end and self.metric_for_best_model is None:
             self.metric_for_best_model = "loss"
@@ -496,16 +497,16 @@ class TrainingArguments:
             self.tpu_metrics_debug = False
         if isinstance(self.debug, str):
             self.debug = [DebugOption(s) for s in self.debug.split()]
-
-        if self.deepspeed:
-            # - must be run very last in arg parsing, since it will use a lot of these settings.
-            # - must be run before the model is created.
-            from transformers.integrations import HfTrainerDeepSpeedConfig
-
-            # will be used later by the Trainer
-            # note: leave self.deepspeed unmodified in case a user relies on it not to be modified)
-            self.hf_deepspeed_config = HfTrainerDeepSpeedConfig(self.deepspeed)
-            self.hf_deepspeed_config.trainer_config_process(self)
+        #
+        # if self.deepspeed:
+        #     # - must be run very last in arg parsing, since it will use a lot of these settings.
+        #     # - must be run before the model is created.
+        #     from transformers.deepspeed import HfTrainerDeepSpeedConfig
+        #
+        #     # will be used later by the Trainer
+        #     # note: leave self.deepspeed unmodified in case a user relies on it not to be modified)
+        #     self.hf_deepspeed_config = HfTrainerDeepSpeedConfig(self.deepspeed)
+        #     self.hf_deepspeed_config.trainer_config_process(self)
 
     def __repr__(self):
         # We override the default repr to remove deprecated arguments from the repr. This method should be removed once
@@ -563,26 +564,26 @@ class TrainingArguments:
             self.local_rank = sm_dist.get_local_rank()
             device = torch.device("cuda", self.local_rank)
             self._n_gpu = 1
-        elif self.deepspeed:
-            # deepspeed performs its own DDP internally, and requires the program to be started with:
-            # deepspeed  ./program.py
-            # rather than:
-            # python -m torch.distributed.launch --nproc_per_node=2 ./program.py
-            from transformers.integrations import is_deepspeed_available
-
-            if not is_deepspeed_available():
-                raise ImportError("--deepspeed requires deepspeed: `pip install deepspeed`.")
-            import deepspeed
-
-            deepspeed.init_distributed()
-
-            # workaround for setups like notebooks where the launcher can't be used,
-            # but deepspeed requires a dist env.
-            # env LOCAL_RANK could be set manually by the user, or via init_distributed if mpi4py is installed
-            self.local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
-
-            device = torch.device("cuda", self.local_rank)
-            self._n_gpu = 1
+        # elif self.deepspeed:
+        #     # deepspeed performs its own DDP internally, and requires the program to be started with:
+        #     # deepspeed  ./program.py
+        #     # rather than:
+        #     # python -m torch.distributed.launch --nproc_per_node=2 ./program.py
+        #     from transformers.deepspeed import is_deepspeed_available
+        #
+        #     if not is_deepspeed_available():
+        #         raise ImportError("--deepspeed requires deepspeed: `pip install deepspeed`.")
+        #     import deepspeed
+        #
+        #     deepspeed.init_distributed()
+        #
+        #     # workaround for setups like notebooks where the launcher can't be used,
+        #     # but deepspeed requires a dist env.
+        #     # env LOCAL_RANK could be set manually by the user, or via init_distributed if mpi4py is installed
+        #     self.local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
+        #
+        #     device = torch.device("cuda", self.local_rank)
+        #     self._n_gpu = 1
         elif self.local_rank == -1:
             # if n_gpu is > 1 we'll use nn.DataParallel.
             # If you only want to use a specific subset of GPUs use `CUDA_VISIBLE_DEVICES=0`
@@ -596,8 +597,9 @@ class TrainingArguments:
             self._n_gpu = torch.cuda.device_count()
         else:
             # Here, we'll use torch.distributed.
+            print('here!!!!!!!!!!!!!')
             # Initializes the distributed backend which will take care of synchronizing nodes/GPUs
-            torch.distributed.init_process_group(backend="nccl")
+            # torch.distributed.init_process_group(backend="nccl")
             device = torch.device("cuda", self.local_rank)
             self._n_gpu = 1
 
@@ -619,7 +621,6 @@ class TrainingArguments:
     def n_gpu(self):
         """
         The number of GPUs used by this process.
-
         Note:
             This will only be greater than one when you have multiple GPUs available but are not using distributed
             training. For distributed training, it will always be 1.
@@ -627,13 +628,12 @@ class TrainingArguments:
         # Make sure `self._n_gpu` is properly setup.
         _ = self._setup_devices
         return self._n_gpu
-        # return torch.cuda.device_count()
+
     @property
     @torch_required
     def parallel_mode(self):
         """
         The current mode used for parallelism if multiple GPUs/TPU cores are available. One of:
-
         - :obj:`ParallelMode.NOT_PARALLEL`: no parallelism (CPU or one GPU).
         - :obj:`ParallelMode.NOT_DISTRIBUTED`: several GPUs in one single process (uses :obj:`torch.nn.DataParallel`).
         - :obj:`ParallelMode.DISTRIBUTED`: several GPUs, each having its own process (uses
@@ -726,7 +726,7 @@ class TrainingArguments:
         """
         Whether or not to use no_sync for the gradients when doing gradient accumulation.
         """
-        return not (self.deepspeed or is_sagemaker_dp_enabled() or is_sagemaker_mp_enabled())
+        return not (is_sagemaker_dp_enabled() or is_sagemaker_mp_enabled())
 
     def to_dict(self):
         """
@@ -758,7 +758,6 @@ class TrainingArguments:
             valid_types.append(torch.Tensor)
 
         return {k: v if type(v) in valid_types else str(v) for k, v in d.items()}
-
 
 class ParallelMode(Enum):
     NOT_PARALLEL = "not_parallel"

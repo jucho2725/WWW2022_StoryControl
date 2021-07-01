@@ -41,19 +41,20 @@ from control.evaluation import (
 from apex import amp
 from torch_optimizer import Lamb
 import wandb
+import pandas as pd
 
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args):
+def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch):
     # ppl
     results = {}
 
     result = evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset)
     results.update(result)
 
-    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset)
+    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset, epoch=epoch)
     results.update(result)
     return results
 
@@ -279,7 +280,7 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
             model.save_pretrained(save_path)
         tokenizer.save_pretrained(save_path)
 
-        if train_args.do_eval:
+        if train_args.do_eval and train_args.evaluation_strategy == 'epoch':
             results = {}
             if train_args.evaluation_metric == "ppl" or train_args.evaluation_metric == "both":
                 logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
@@ -315,6 +316,14 @@ def main():
         (ModelArguments, DataArguments, TrainingArguments, GenerationArguments)
     )
     model_args, data_args, train_args, gen_args = parser.parse_args_into_dataclasses()
+
+
+    if data_args.hard_negative:
+        df = pd.read_csv(filepath_or_buffer=data_args.train_data_file, sep='\t', index_col=False)
+        assert 'content_neg' in df.columns, "You must include negatives in dataset"
+        print("************************ HARD NEGATIVE data ************************")
+    else:
+        print("************************ NORMAL data ************************")
 
     if data_args.no_genre:
         setattr(train_args, 'output_dir', f"./outputs/gpt2_finetune")
@@ -374,6 +383,10 @@ def main():
         train_dataset, origin_dataset = load_and_cache_examples_train(data_args, tokenizer)
         if train_args.evaluation_first or train_args.do_eval or train_args.evaluation_metric:
             eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
+
+        # train_dataset = train_dataset.select(range(20))
+        # eval_dataset = eval_dataset.select(range(8))
+
         t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
         print(tokenizer.decode(train_dataset[0]['origin']['input_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True))
         logger.info("***** Load optimizer *****")
@@ -418,7 +431,7 @@ def main():
 
         logger.info("***** Running training *****")
         logger.info(f"***** Genre training {not data_args.no_genre} *****")
-        wandb.init(project="aiide_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
+        wandb.init(project="aaai_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         # wandb.init(project="aiide_storycontrol", name=f"0612_gpt2", resume=True)
         wandb.watch(model, log_freq=20)
         if train_args.evaluation_first:
@@ -437,19 +450,19 @@ def main():
 
 
 
-    elif train_args.do_eval or train_args.do_predict:
+    if train_args.do_eval or train_args.do_predict:
         eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
         logger.info("***** Running evaluation *****")
 
         if train_args.n_gpu > 1: # case of dist training
-            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,)
+            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='last')
         else:
-            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,)
+            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='last')
 
         if train_args.do_eval:
             output_eval_file = os.path.join(train_args.output_dir, "eval_results.txt")
         else:
-            output_eval_file = os.path.join(train_args.output_dir, "pred_results.txt")
+            output_eval_file = os.path.join(train_args.output_dir, "scrap/pred_results.txt")
 
         with open(output_eval_file, "w") as writer:
             logger.info("***** Eval results *****")

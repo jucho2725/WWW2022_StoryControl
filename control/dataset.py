@@ -4,10 +4,15 @@ from datasets import Dataset
 import copy
 
 
-label_to_int = {'romance': 0,
-            'action': 1,
+# label_to_int = {'romance': 0,
+#             'action': 1,
+#             'horror': 2,
+#             'western':3,}
+
+label_to_int = {'action': 0,
+            'romance': 1,
             'horror': 2,
-            'western':3,}
+            'crime': 3,}
 int_to_label = {v: k for k, v in label_to_int.items()}
 
 def load_and_cache_examples_eval(data_args, tokenizer):
@@ -69,11 +74,23 @@ def load_and_cache_examples_train(data_args, tokenizer):
         inputs = examples['content']
         inputs_09 = examples['content_aug_09']
         inputs_05 = examples['content_aug_05']
-        genre = examples['genre']
 
-        model_inputs_final = {'origin': {},
-                                'aug_09': {},
-                                'aug_05': {}}
+        genre = examples['genre']
+        model_inputs_final = {
+            'origin': {},
+            'aug_09': {},
+            'aug_05': {},
+            'aug_neg': {}
+        }
+
+        if data_args.hard_negative and 'content_neg' in df.columns:
+
+            inputs_neg = examples['content_neg']
+            model_inputs_final['neg_labels'] = label_to_int[examples['content_neg_genre']]
+            # #### neg ####
+            model_inputs = tokenizer(inputs_neg, truncation=True, padding=padding, max_length=max_source_length)
+            model_inputs_final['aug_neg']['input_ids'] = model_inputs['input_ids']
+            model_inputs_final['aug_neg']['attention_mask'] = model_inputs['attention_mask']
 
         model_inputs_final['labels'] = label_to_int[examples['genre']]
 
@@ -81,36 +98,26 @@ def load_and_cache_examples_train(data_args, tokenizer):
         model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=max_source_length)
         model_inputs_final['origin']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
             else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        model_inputs_final['origin']['attention_mask'] =  model_inputs['attention_mask'] if data_args.no_genre\
+        model_inputs_final['origin']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
             else [1] + model_inputs['attention_mask']
 
         # augmented input 09
         model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)
-        # model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-        #     else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        # model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-        #     else [1] + model_inputs['attention_mask']
-
-        #### no genre ####
         model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids']
         model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask']
 
         # augmented input 05
         model_inputs = tokenizer(inputs_05, truncation=True, padding=padding, max_length=max_source_length)
-        # model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-        #     else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
-        # model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-        #     else [1] + model_inputs['attention_mask']
         model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids']
         model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask']
 
-        #### neg ####
-
-
-
         return model_inputs_final
 
-    columns_to_return = ['origin', 'aug_09', 'aug_05', 'labels']
+    if data_args.hard_negative and 'content_neg' in df.columns:
+        columns_to_return = ['origin', 'aug_09', 'aug_05', 'aug_neg', 'labels', 'neg_labels']
+    else:
+        columns_to_return = ['origin', 'aug_09', 'aug_05', 'labels']
+
 
     preprocessing_num_workers = int(mp.cpu_count() / 2)
 

@@ -27,10 +27,14 @@ from control.arguments import (
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-label_to_int = {'romance': 0,
-            'action': 1,
+# label_to_int = {'romance': 0,
+#             'action': 1,
+#             'horror': 2,
+#             'western':3,}
+label_to_int = {'action': 0,
+            'romance': 1,
             'horror': 2,
-            'western':3,}
+            'crime': 3,}
 int_to_label = {v: k for k, v in label_to_int.items()}
 
 
@@ -239,7 +243,7 @@ def main():
         trainer.save_metrics("eval", metrics)
 
     elif train_args.do_predict:
-        output_predict_file = os.path.join(train_args.output_dir, "pred_results.txt")
+        output_predict_file = os.path.join(train_args.output_dir, "/pred_results.txt")
         logger.info("*** Predict ***")
 
         outputs = trainer.predict(test_dataset=valid_dataset)

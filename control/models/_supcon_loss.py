@@ -139,9 +139,13 @@ class ContrastiveLoss(nn.Module):
                   else torch.device('cpu'))
 
 
-    def forward(self, features, labels):
+    # def forward(self, features, labels):
+    def forward(self, features, labels, neg_labels=None):
         # print(f"before sample {features.shape} {labels.shape}") # 8 2 768 || 8
-        features, labels = self.make_samples(features, labels)
+        if neg_labels is None:
+            features, labels = self.make_samples(features, labels)
+        else:
+            features, labels = self.make_samples_neg(features, labels, neg_labels)
         # print(f"after sample {features.shape} {labels.shape}") # 80 2 768 || 80
         rep_anchor = features[:, 0]
         rep_other = features[:, 1]
@@ -149,8 +153,7 @@ class ContrastiveLoss(nn.Module):
 
         losses = 0.5 * (labels.float() * distances.pow(2) + (1 - labels).float() * F.relu(self.margin - distances).pow(2))
         return losses.mean() if self.size_average else losses.sum()
-
-
+    #
     # contrast pos pos'
     def make_samples(self, features, labels):
         batch_size = features.size()[0]
@@ -178,4 +181,62 @@ class ContrastiveLoss(nn.Module):
         reconst = torch.stack(reconst).to(self.device)
         labels = torch.tensor(re_labels, dtype=torch.float).to(self.device)
 
+        return reconst, labels
+    #
+    # contrast pos pos' neg
+    def make_samples_neg(self, features, labels, neg_labels):
+        batch_size = features.size()[0]
+        reconst = []
+        re_labels = []
+
+        for i in range(batch_size):
+            anchor_pos1 = features[i][0]  # anchor emb
+            anchor_pos2 = features[i][1]
+            anchor_neg = features[i][2]
+
+            anchor_label = labels[i]
+            anchor_neg_label = neg_labels[i]
+
+            reconst.append(torch.stack([anchor_pos1, anchor_pos2]))  # A A' 과 같이 pos 쌍 들어감
+            re_labels.append(1)  # pos
+
+            reconst.append(torch.stack([anchor_pos2, anchor_neg]))
+            reconst.append(torch.stack([anchor_pos1, anchor_neg]))
+            if anchor_label == anchor_neg_label:
+                re_labels.extend([1, 1])
+            else:
+                re_labels.extend([0, 0])
+
+            for j in range(i + 1, batch_size):
+                reconst.append(torch.stack([anchor_pos1, features[j][0]]))
+                reconst.append(torch.stack([anchor_pos2, features[j][0]]))
+                reconst.append(torch.stack([anchor_pos1, features[j][1]]))
+                reconst.append(torch.stack([anchor_pos2, features[j][1]]))
+                if anchor_label == labels[j]:
+                    re_labels.extend([1, 1, 1, 1])
+                else:
+                    re_labels.extend([0, 0, 0, 0])
+
+                reconst.append(torch.stack([anchor_neg, features[j][0]]))
+                reconst.append(torch.stack([anchor_neg, features[j][1]]))
+                if anchor_neg_label == labels[j]:
+                    re_labels.extend([1, 1])
+                else:
+                    re_labels.extend([0, 0])
+
+                reconst.append(torch.stack([anchor_pos1, features[j][2]]))
+                reconst.append(torch.stack([anchor_pos2, features[j][2]]))
+                if anchor_label == neg_labels[j]:
+                    re_labels.extend([1, 1])
+                else:
+                    re_labels.extend([0, 0])
+
+                reconst.append(torch.stack([anchor_neg, features[j][2]]))
+                if anchor_neg_label == neg_labels[j]:
+                    re_labels.append(1)
+                else:
+                    re_labels.append(0)
+
+        reconst = torch.stack(reconst).to(self.device)
+        labels = torch.tensor(re_labels, dtype=torch.float).to(self.device)
         return reconst, labels
