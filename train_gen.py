@@ -437,9 +437,9 @@ def main():
         if train_args.evaluation_first:
             logger.info("***** Running evaluation *****")
             if train_args.n_gpu > 1:  # case of dist training
-                results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, )
+                results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='none')
             else:
-                results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, )
+                results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='none')
             for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
                 wandb.log({f"{key}": value})
