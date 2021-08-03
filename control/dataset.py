@@ -2,7 +2,9 @@ import pandas as pd
 import multiprocessing as mp
 from datasets import Dataset
 import copy
+import spacy
 
+nlp = spacy.load("en_core_web_sm")
 
 # label_to_int = {'romance': 0,
 #             'action': 1,
@@ -16,8 +18,7 @@ label_to_int = {'action': 0,
 int_to_label = {v: k for k, v in label_to_int.items()}
 
 def load_and_cache_examples_eval(data_args, tokenizer):
-    import spacy
-    nlp = spacy.load("en_core_web_sm")
+
 
     df = pd.read_csv(filepath_or_buffer=data_args.eval_data_file, sep='\t', index_col=False)
 
@@ -28,11 +29,16 @@ def load_and_cache_examples_eval(data_args, tokenizer):
     def get_one_sent(raw_text):
         return [sent.string.strip() for sent in nlp(raw_text).sents][0]
 
+    def get_ten_toks(raw_text):
+        return tokenizer.convert_tokens_to_string(tokenizer.tokenize(raw_text)[:10])
+
+
     def preprocess_function(examples):
         """
         batched preprocess function
         """
-        inputs = [get_one_sent(ex) for ex in examples['content']]
+        # inputs = [get_one_sent(ex) for ex in examples['content']]
+        inputs = [get_ten_toks(ex) for ex in examples['content']]
 
         genres = examples['genre']
         model_inputs = tokenizer(inputs, truncation=True, padding=True, max_length=max_source_length)
