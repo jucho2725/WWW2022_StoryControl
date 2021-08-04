@@ -27,6 +27,23 @@ class SupConGPT2(GPT2PreTrainedModel):
             batch_09, batch_05, batch_neg = batch['aug_09'], batch['aug_05'], batch['aug_neg']
             encoder_output = self.encoder(batch_09, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
 
+        # print(f"{batch_org['input_ids'].shape} {batch_09['input_ids'].shape} {batch_05['input_ids'].shape} {batch_neg['input_ids'].shape}")
+        # scl loss from encoder
+        # if 'aug_neg' not in batch.keys():
+        #     batch_05 = batch['aug_05']
+        #     encoder_output = self.encoder(batch_org, batch_05, labels=batch['labels'])
+        # else:
+        #     batch_05, batch_neg = batch['aug_05'], batch['aug_neg']
+        #     encoder_output = self.encoder(batch_org, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
+        #
+        # # scl loss from encoder
+        # if 'aug_neg' not in batch.keys():
+        #     batch_org, batch_05 = batch['origin'], batch['aug_05']
+        #     encoder_output = self.encoder(batch_org, batch_05, labels=batch['labels'])
+        # else:
+        #     batch_org, batch_05, batch_neg = batch['origin'], batch['aug_05'], batch['aug_neg']
+        #     encoder_output = self.encoder(batch_org, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
+
         scl_loss = encoder_output.loss
 
         return nll_loss, scl_loss

@@ -79,6 +79,7 @@ def load_and_cache_examples_train(data_args, tokenizer):
         """
         inputs = examples['content']
         inputs_09 = examples['content_aug_09']
+        # inputs_09 = examples['content']
         inputs_05 = examples['content_aug_05']
 
         genre = examples['genre']
@@ -108,7 +109,8 @@ def load_and_cache_examples_train(data_args, tokenizer):
             else [1] + model_inputs['attention_mask']
 
         # augmented input 09
-        model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)
+        # model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)
+        model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=200)
         model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids']
         model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask']
 
@@ -123,7 +125,10 @@ def load_and_cache_examples_train(data_args, tokenizer):
         columns_to_return = ['origin', 'aug_09', 'aug_05', 'aug_neg', 'labels', 'neg_labels']
     else:
         columns_to_return = ['origin', 'aug_09', 'aug_05', 'labels']
-
+    # if data_args.hard_negative and 'content_neg' in df.columns:
+    #     columns_to_return = ['origin', 'aug_05', 'aug_neg', 'labels', 'neg_labels']
+    # else:
+    #     columns_to_return = ['origin', 'aug_05', 'labels']
 
     preprocessing_num_workers = int(mp.cpu_count() / 2)
 
