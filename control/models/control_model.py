@@ -3,9 +3,10 @@ from ._supcon_model import GPT2SupConModel
 from ._lmhead_model import GPT2LMHeadModel
 
 class SupConGPT2(GPT2PreTrainedModel):
-    def __init__(self, path, config):
-        super(SupConGPT2, self).__init__(config)
-        self.generater = GPT2LMHeadModel.from_pretrained(path, config=config)
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+        self.generater = GPT2LMHeadModel(config)
         self.encoder = GPT2SupConModel(config, self.generater.transformer)
 
     def resize_token_embeddings(self, new_size):
