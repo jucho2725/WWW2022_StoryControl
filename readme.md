@@ -1,3 +1,6 @@
+
+## NOTE: We have not uploaded the dataset or model checkpoint yet. We will upload those and update the instructions soon!
+
 Code for paper - [Genre-Controllable Story Generation via Supervised Contrastive Learning]()
 
 ### Install and Data preprocess
@@ -20,9 +23,11 @@ I will updates the dataset link
 ### Run experiment
 
 > Step 1: Train genre classifier.
+
 See scripts/run_cls.sh. You may need to revise the variables in the shell scripts first according to your case. 
 
 > Step 2: Train genre-controllable generator and evaluate the perfomance by the classifier.
+
 See scripts/run_gen_cls.sh. You may need to revise the variables in the shell scripts first according to your case.
 
 ### Citation
