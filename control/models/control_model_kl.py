@@ -9,7 +9,7 @@ from transformers import (
     # GPT2LMHeadModel,
     GPT2PreTrainedModel
 )
-from .losses import ContrastiveLoss, align_loss, uniform_loss, TripletLoss, CELoss 
+from .losses import ContrastiveLoss, align_loss, uniform_loss, SimilarityLoss
 
 
 import torch
@@ -33,15 +33,12 @@ class SupConGPT2(GPT2PreTrainedModel):
         self.lm_model.transformer._init_weights(self.encoder_head.out_proj)
 
 
-        if config.loss_type == 'hadsell':
+        if config.margin_triplet:
             logger.info(f"*** margin / in_batch_supervision {config.in_batch_supervision}")
             self.criterion = ContrastiveLoss(margin=config.margin, in_batch_supervision=config.in_batch_supervision)
-        elif config.loss_type == 'triplet':
-            logger.info(f"*** triplet / in_batch_supervision {config.in_batch_supervision}")
-            self.criterion = TripletLoss(margin=config.margin, in_batch_supervision=config.in_batch_supervision)
-        elif config.loss_type == 'cross_entropy':
+        else:
             logger.info(f"*** CE / in_batch_supervision {config.in_batch_supervision}")
-            self.criterion = CELoss(temp=0.05, device=config.device, in_batch_supervision= config.in_batch_supervision)
+            self.criterion = SimilarityLoss(temp=0.05, device=config.device, in_batch_supervision= config.in_batch_supervision)
 
 
     def encode(self, input_ids=None, past_key_values=None, attention_mask=None,
@@ -135,14 +132,21 @@ class SupConGPT2(GPT2PreTrainedModel):
         nll_loss = gen_output.loss
 
         # scl loss from encoder
-
-
-        if 'aug_neg' not in batch.keys():
-            batch_09, batch_05 = batch['aug_09'], batch['aug_05']
-            encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'])
+        if self.config.dropout_aug:
+            # use origin only - will require more memory
+            if 'aug_neg' not in batch.keys():
+                batch_09, batch_05 = batch['origin'], batch['origin']
+                encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'])
+            else:
+                batch_09, batch_05, batch_neg = batch['origin'], batch['origin'], batch['aug_neg']
+                encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
         else:
-            batch_09, batch_05, batch_neg = batch['aug_09'], batch['aug_05'], batch['aug_neg']
-            encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
+            if 'aug_neg' not in batch.keys():
+                batch_09, batch_05 = batch['aug_09'], batch['aug_05']
+                encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'])
+            else:
+                batch_09, batch_05, batch_neg = batch['aug_09'], batch['aug_05'], batch['aug_neg']
+                encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
 
         # print(f"{batch_org['input_ids'].shape} {batch_09['input_ids'].shape} {batch_05['input_ids'].shape} {batch_neg['input_ids'].shape}")
 
@@ -150,6 +154,8 @@ class SupConGPT2(GPT2PreTrainedModel):
         # print(f"nll {nll_loss}")
         # print(f"scl , {scl_loss}")
         # print(여기)
+
+
         return ControlModelOutputs(
                 nll_loss=nll_loss,
                 scl_loss=encoder_output.scl_loss,
@@ -176,7 +182,12 @@ class GPT2EncoderHead(nn.Module):
     def forward(self, hidden_states: torch.Tensor):
 
         hidden_states = self.dropout(hidden_states)
-        hidden_states = self.dense(hidden_states)
+        try:
+            hidden_states = self.dense(hidden_states)
+        except Exception as e:
+            print(e)
+            print("="* 80)
+            print(hidden_states.shape)
         hidden_states = torch.tanh(hidden_states)
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.out_proj(hidden_states)

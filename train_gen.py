@@ -43,9 +43,9 @@ from torch_optimizer import Lamb
 import wandb
 import pandas as pd
 
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
 
 def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch):
     # ppl
@@ -57,7 +57,6 @@ def evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, 
     result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset, epoch=epoch)
     results.update(result)
     return results
-
 
 # evaluate perplexity
 def evaluate_ppl(data_args, train_args, model, tokenizer, eval_dataset):
@@ -169,22 +168,22 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval
 
         with torch.no_grad():
             output_sequences = model.generater.generate(input_ids=batch['input_ids'],
-                                                        attention_mask=batch['attention_mask'],
-                                                        max_length=data_args.max_seq_length,
-                                                        **asdict(gen_args))
+                                              attention_mask=batch['attention_mask'],
+                                              max_length=data_args.max_seq_length,
+                                              **asdict(gen_args))
             if len(output_sequences.shape) > 2:
                 output_sequences.squeeze_()
 
-            dist_eval_samples.extend(list(filter(lambda x: x != tokenizer.pad_token_id, output_sequences.tolist())))
+            dist_eval_samples.extend(list(filter(lambda x: x!= tokenizer.pad_token_id, output_sequences.tolist())))
             num_tokens += sum([len(output) for output in output_sequences.tolist()])
+
 
         generated_sequence_idx = 0
         for generated_sequence in output_sequences:
             generated_sequence = generated_sequence.tolist()
             # Decode text
             generated_sequences.append(clean_text(tokenizer.decode(generated_sequence,
-                                                                   skip_special_tokens=False,
-                                                                   clean_up_tokenization_spaces=True)))
+                                                                   skip_special_tokens=False, clean_up_tokenization_spaces=True)))
             generated_sequence_idx += 1
 
     dist1_score = count_ngram(dist_eval_samples, 1) / float(num_tokens)
@@ -204,14 +203,13 @@ def evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval
     return result
 
 
-def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, data_args, model_args, train_args,
-          gen_args):
+def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, data_args, model_args, train_args, gen_args):
     data_collator = DataCollatorForSCL(tokenizer)
     t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
-
+    
     sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=sampler,
-                                  batch_size=train_args.train_batch_size, collate_fn=data_collator)
+                                    batch_size=train_args.train_batch_size, collate_fn=data_collator)
 
     logger.info("  Num examples = %d", len(train_dataset))
     logger.info("  Num Epochs = %d", train_args.num_train_epochs)
@@ -241,7 +239,7 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
             generator_loss, encoder_loss = model(batch)
 
             # loss sum
-            loss = model_args.scl_weight * encoder_loss + (1.0 - model_args.scl_weight) * generator_loss
+            loss = model_args.scl_weight * encoder_loss + (1.0 - model_args.scl_weight) * generator_loss 
 
             if train_args.n_gpu > 1:
                 loss = loss.mean()  # mean() to average on multi-gpu parallel training
@@ -256,7 +254,7 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
                 loss.backward()
 
             tr_loss += loss.item()
-
+            
             if (step + 1) % train_args.gradient_accumulation_steps == 0:
                 if train_args.fp16:
                     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), train_args.max_grad_norm)
@@ -294,16 +292,15 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
             if train_args.evaluation_metric == "dist" or train_args.evaluation_metric == "both":
                 logger.info(f"***** Running evaluation {train_args.evaluation_metric} *****")
                 if train_args.n_gpu > 1:
-                    result = evaluate_dist_scores(data_args, train_args, gen_args, model.module, tokenizer,
-                                                  eval_dataset, epoch=now_epoch)
+                    result = evaluate_dist_scores(data_args, train_args, gen_args, model.module, tokenizer, eval_dataset, epoch=now_epoch)
                 else:
-                    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset,
-                                                  epoch=now_epoch)
+                    result = evaluate_dist_scores(data_args, train_args, gen_args, model, tokenizer, eval_dataset, epoch=now_epoch)
                 results.update(result)
 
             for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
                 wandb.log({f"{key}": value})
+
 
     # save the last model
     if train_args.n_gpu > 1:
@@ -314,12 +311,12 @@ def train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler, d
 
     return global_step, tr_loss / global_step
 
-
 def main():
     parser = HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments, GenerationArguments)
     )
     model_args, data_args, train_args, gen_args = parser.parse_args_into_dataclasses()
+
 
     if data_args.hard_negative:
         df = pd.read_csv(filepath_or_buffer=data_args.train_data_file, sep='\t', index_col=False)
@@ -331,8 +328,7 @@ def main():
     if data_args.no_genre:
         setattr(train_args, 'output_dir', f"./outputs/gpt2_finetune")
     else:
-        setattr(train_args, 'output_dir',
-                f"./outputs/scl{int(model_args.scl_weight * 100)}_tau{int(model_args.tau * 100)}")
+        setattr(train_args, 'output_dir', f"./outputs/scl{int(model_args.scl_weight * 100)}_tau{int(model_args.tau * 100)}")
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -352,16 +348,16 @@ def main():
     set_seed(train_args.seed)
     tokenizer = GPT2Tokenizer.from_pretrained(model_args.model_name_or_path)
     # tokenizer.pad_token = tokenizer.eos_token
-    #     tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-2.7B", bos_token='<|endoftext|>',
-    #                                               eos_token='<|endoftext|>', pad_token='<|pad|>')
-    # ###
+#     tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-2.7B", bos_token='<|endoftext|>',
+#                                               eos_token='<|endoftext|>', pad_token='<|pad|>')
+# ###
     special_tokens_dict = {
         "pad_token": "<|pad|>",
         "bos_token": "<|endoftext|>",
         # "additional_special_tokens": ['[MALE]', '[FEMALE]', '[NEUTRAL]'],
     }
     num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
-    # ###
+# ###
     config = GPT2Config.from_pretrained(model_args.model_name_or_path)
     # set more attr #
     setattr(config, 'f_embd', 768)
@@ -374,13 +370,13 @@ def main():
         config=config,
     )
     model = model.to(train_args.device)
-    # ###
+# ###
     model.generater.resize_token_embeddings(len(tokenizer))
     # issue https://github.com/huggingface/transformers/issues/8039
     unk_tok_emb = model.generater.transformer.wte.weight.data[tokenizer.unk_token_id, :]
     for i in range(num_added_toks):
-        model.generater.transformer.wte.weight.data[-(i + 1), :] = unk_tok_emb
-    # ###
+        model.generater.transformer.wte.weight.data[-(i+1), :] = unk_tok_emb
+# ###
 
     if train_args.do_train:
         logger.info("***** Load dataset *****")
@@ -392,8 +388,7 @@ def main():
         # eval_dataset = eval_dataset.select(range(8))
 
         t_total = len(train_dataset) // train_args.gradient_accumulation_steps * train_args.num_train_epochs
-        print(tokenizer.decode(train_dataset[0]['origin']['input_ids'], skip_special_tokens=False,
-                               clean_up_tokenization_spaces=True))
+        print(tokenizer.decode(train_dataset[0]['origin']['input_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True))
         logger.info("***** Load optimizer *****")
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ["bias", "LayerNorm.weight"]
@@ -402,11 +397,10 @@ def main():
                 "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
                 "weight_decay": train_args.weight_decay,
             },
-            {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-             "weight_decay": 0.0},
+            {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], "weight_decay": 0.0},
         ]
 
-        optimizer = Lamb(optimizer_grouped_parameters, lr=train_args.learning_rate, eps=train_args.adam_epsilon)
+        optimizer = Lamb(optimizer_grouped_parameters,  lr=train_args.learning_rate, eps=train_args.adam_epsilon)
         scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps=train_args.warmup_steps, num_training_steps=t_total
         )
@@ -427,8 +421,7 @@ def main():
         # Distributed training (should be after apex fp16 initialization)
         if train_args.local_rank != -1:
             model = torch.nn.parallel.DistributedDataParallel(
-                model, device_ids=[train_args.local_rank], output_device=train_args.local_rank,
-                find_unused_parameters=False,
+                model, device_ids=[train_args.local_rank], output_device=train_args.local_rank, find_unused_parameters=False,
             )
         # Load pretrained model and tokenizer
         if train_args.local_rank not in [-1, 0]:
@@ -438,35 +431,33 @@ def main():
 
         logger.info("***** Running training *****")
         logger.info(f"***** Genre training {not data_args.no_genre} *****")
-        wandb.init(project="aaai_storycontrol_scl_tau", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
+        wandb.init(project="aaai_storycontrol", name=f"scl_{model_args.scl_weight}_temp_{model_args.tau}")
         # wandb.init(project="aiide_storycontrol", name=f"0612_gpt2", resume=True)
         wandb.watch(model, log_freq=20)
         if train_args.evaluation_first:
             logger.info("***** Running evaluation *****")
             if train_args.n_gpu > 1:  # case of dist training
-                results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,
-                                   epoch='none')
+                results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='none')
             else:
-                results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,
-                                   epoch='none')
+                results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='none')
             for key, value in sorted(results.items()):
                 logger.info(f"  {key} = {value}")
                 wandb.log({f"{key}": value})
 
         global_step, tr_avg_loss = train(train_dataset, eval_dataset, tokenizer, model, optimizer, scheduler,
-                                         data_args, model_args, train_args, gen_args, )
+                                        data_args, model_args, train_args, gen_args, )
         logger.info(" global_step = %s, average loss = %s", global_step, tr_avg_loss)
+
+
 
     if train_args.do_eval or train_args.do_predict:
         eval_dataset, origin_eval_dataset = load_and_cache_examples_eval(data_args, tokenizer)
         logger.info("***** Running evaluation *****")
 
-        if train_args.n_gpu > 1:  # case of dist training
-            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,
-                               epoch='last')
+        if train_args.n_gpu > 1: # case of dist training
+            results = evaluate(model.module, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='last')
         else:
-            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args,
-                               epoch='last')
+            results = evaluate(model, tokenizer, eval_dataset, data_args, model_args, train_args, gen_args, epoch='last')
 
         if train_args.do_eval:
             output_eval_file = os.path.join(train_args.output_dir, "eval_results.txt")
@@ -480,6 +471,7 @@ def main():
                 writer.write(f"{key} = {value}\n")
                 if train_args.do_train:
                     wandb.log({f"{key}": value})
+
 
 
 if __name__ == "__main__":

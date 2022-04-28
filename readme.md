@@ -1,61 +1,41 @@
-# Readme
+Code for paper - [Genre-Controllable Story Generation via Supervised Contrastive Learning]()
 
-## 소개
-
-ICIDS 2021 story control
-
-## 설치 방법
-
-### 요구 사항
-
-```
-# data (51.2 MB)
-
-```
-
-## 파일 구성
+### Install and Data preprocess
+The code is implemented on [transformers v4.3.1](), follow the same steps to install and prepare the processed dataset.
 
 
-### 저장소 구조
+> Step 1: Install prerequisites.
 
 ```bash
-./assets/                # readme 에 필요한 이미지 저장
-
+## you may want to build a virtual environment first.
+git clone https://github.com/jucho2725/WWW2022_StoryControl.git
+cd leca
+pip install -r requirements.txt
 ```
 
-## 데이터 소개
+> Step 2: Process dataset
 
-```python
-./data/         # 전체 데이터
+I will updates the dataset link 
 
+### Run experiment
 
-```
+> Step 1: Train genre classifier.
+See scripts/run_cls.sh. You may need to revise the variables in the shell scripts first according to your case. 
 
-# 훈련, 평가, 추론
+> Step 2: Train genre-controllable generator and evaluate the perfomance by the classifier.
+See scripts/run_gen_cls.sh. You may need to revise the variables in the shell scripts first according to your case.
 
-### train
+### Citation
 
-train.py 
+TBD
 
-```
-# 학습 예시 (train_dataset 사용)
-python train_gen.py --train_data_file data/train_genre3_delex.tsv --output_dir outputs/test_scl --overwrite_output_dir --do_train --num_train_epochs 10 --per_device_train_batch_size 8 --fp16
-```
-
-### eval 까지 추가하기 
-
-```
-python train_gen.py --train_data_file data/dummy_genre3_delex.tsv --eval_data_file data/dummy_genre3_delex.tsv --output_dir outputs/test_traineval --overwrite_output_dir --do_train --do_eval --num_train_epochs 1 --per_device_train_batch_size 8 --fp16 --evaluation_strategy epoch --evaluation_metric ppl
-```
-
-### inference
-
-
-* 아직 안되어잇음  
-```
-```
-
-### How to submit
-
-
-# Citation
+<!-- ```bibtex
+@inproceedings{chen2020leca,
+  title     = {Lexical-Constraint-Aware Neural Machine Translation via Data Augmentation},
+  author    = {Chen, Guanhua and Chen, Yun and Wang, Yong and Li, Victor O.K.},
+  booktitle = {Proceedings of {IJCAI} 2020: Main track},          
+  pages     = {3587--3593},
+  year      = {2020},
+  month     = {7},
+}
+``` -->

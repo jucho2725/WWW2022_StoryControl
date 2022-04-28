@@ -23,3 +23,5 @@ from .evaluation import (
     evaluate_ppl,
     evaluate_dist_scores
 )
+
+from .RecAdam import RecAdam

@@ -18,84 +18,26 @@ import torch.nn.functional as F
 import logging
 logger = logging.getLogger(__name__)
 
-from ._supcon_loss import SupConLoss, ContrastiveLoss
+from .losses import SupConLoss, ContrastiveLoss, align_loss, uniform_loss
         
 class GPT2SupConModel(GPT2PreTrainedModel):
-    def __init__(self, config, model):
+    def __init__(self, config):
         super(GPT2SupConModel, self).__init__(config)
-        self.model = model
-        self._encoder = GPT2ForSequenceEncoder(config, model)
+        # self._encoder = GPT2ForSequenceEncoder(config, model)
         # self._criterion = SupConLoss(temperature=config.temperature)
-        self._criterion = ContrastiveLoss()
-
-
-    def forward(self, batch_input1, batch_input2, labels, batch_input3=None, neg_labels=None):
-        # None None of not None not None
-        assert (batch_input3 is not None and neg_labels is not None) or (batch_input3 is None and neg_labels is None)
-
-        f_pos1 = self._encoder(**batch_input1)
-        f_pos2 = self._encoder(**batch_input2)
-
-        if batch_input3 is None and neg_labels is None:
-            features = torch.cat([f_pos1.unsqueeze(1),
-                                  f_pos2.unsqueeze(1),],
-                                 dim=1)
-            loss = self._criterion(features, labels)
-            return SequenceOutput(
-                loss=loss,
-                feature_pos1=f_pos1,
-                feature_pos2=f_pos2,
-            )
-        else:
-            f_neg = self._encoder(**batch_input3)
-            features = torch.cat([f_pos1.unsqueeze(1),
-                                  f_pos2.unsqueeze(1),
-                                  f_neg.unsqueeze(1)], dim=1)
-
-            loss = self._criterion(features, labels, neg_labels)
-            return SequenceOutput(
-                loss=loss,
-                feature_pos1=f_pos1,
-                feature_pos2=f_pos2,
-                feature_neg = f_neg
-            )
-
-
-@dataclass
-class SequenceOutput(ModelOutput):
-    """
-    Args:
-        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, 
-        feature_pos1 (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
-        feature_pos2 (:obj:`tuple(tupel(torch.FloatTensor))`, `optional`,
-        feature_neg
-    """
-
-    loss: Optional[torch.FloatTensor] = None
-    feature_pos1: torch.FloatTensor = None
-    feature_pos2: torch.FloatTensor = None
-    feature_neg: torch.FloatTensor = None
-
-class GPT2ForSequenceEncoder(GPT2PreTrainedModel):
-    _keys_to_ignore_on_load_missing = [r"h\.\d+\.attn\.masked_bias", r"lm_head\.weight"]
-
-    def __init__(self, config, model):
-        super().__init__(config)
         self.config=config
-        self.transformer = model
         self.encoder_head =GPT2EncoderHead(config.n_embd,
                                            config.n_embd,
-                                           config.f_embd, # feature embedding 
+                                           config.f_embd, # feature embedding
                                            config.classifier_dropout)
 
         # self.init_weights()
         self.transformer._init_weights(self.encoder_head.dense)
         self.transformer._init_weights(self.encoder_head.out_proj)
-        # Model parallel
-        self.model_parallel = False
-        self.device_map = None
 
-    def forward(
+        self.criterion = ContrastiveLoss()
+
+    def encode(
         self,
         input_ids=None,
         past_key_values=None,
@@ -109,7 +51,6 @@ class GPT2ForSequenceEncoder(GPT2PreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         transformer_outputs = self.transformer(
@@ -146,6 +87,60 @@ class GPT2ForSequenceEncoder(GPT2PreTrainedModel):
         feature = self.encoder_head(pooled_logits)
         feature = F.normalize(feature, dim=1)
         return feature
+
+
+    def forward(self, batch_input1, batch_input2, labels, batch_input3=None, neg_labels=None):
+        # None None of not None not None
+        assert (batch_input3 is not None and neg_labels is not None) or (batch_input3 is None and neg_labels is None)
+
+        f_pos1 = self.encode(**batch_input1)
+        f_pos2 = self.encode(**batch_input2)
+
+        if batch_input3 is None and neg_labels is None:
+            features = torch.cat([f_pos1.unsqueeze(1),
+                                  f_pos2.unsqueeze(1),],
+                                 dim=1)
+            loss = self.criterion(features, labels)
+
+            return SequenceOutput(
+                scl_loss=loss,
+                align_loss=align_loss(f_pos1, f_pos2),
+                uniform_loss=uniform_loss(torch.cat((f_pos1, f_pos2), dim=0)),
+                feature_pos1=f_pos1,
+                feature_pos2=f_pos2,
+            )
+        else:
+            f_neg = self.encode(**batch_input3)
+            features = torch.cat([f_pos1.unsqueeze(1),
+                                  f_pos2.unsqueeze(1),
+                                  f_neg.unsqueeze(1)], dim=1)
+
+            loss = self.criterion(features, labels, neg_labels)
+            return SequenceOutput(
+                scl_loss=loss,
+                align_loss=align_loss(f_pos1, f_pos2),
+                uniform_loss=uniform_loss(torch.cat((f_pos1, f_pos2, f_neg), dim=0)),
+                feature_pos1=f_pos1,
+                feature_pos2=f_pos2,
+                feature_neg = f_neg
+            )
+
+@dataclass
+class SequenceOutput(ModelOutput):
+    """
+    Args:
+        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, 
+        feature_pos1 (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
+        feature_pos2 (:obj:`tuple(tupel(torch.FloatTensor))`, `optional`,
+        feature_neg
+    """
+
+    scl_loss: torch.FloatTensor = None
+    align_loss: torch.FloatTensor = None
+    uniform_loss: torch.FloatTensor = None
+    feature_pos1: Optional[torch.FloatTensor] = None
+    feature_pos2: Optional[torch.FloatTensor] = None
+    feature_neg: Optional[torch.FloatTensor] = None
 
 
 class GPT2EncoderHead(nn.Module):

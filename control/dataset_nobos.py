@@ -2,6 +2,14 @@ import pandas as pd
 import multiprocessing as mp
 from datasets import Dataset
 import copy
+import spacy
+
+nlp = spacy.load("en_core_web_sm")
+
+# label_to_int = {'romance': 0,
+#             'action': 1,
+#             'horror': 2,
+#             'western':3,}
 
 label_to_int = {'action': 0,
             'romance': 1,
@@ -16,63 +24,67 @@ label_to_toknum = {'action': 2223,
             'crime': 4065}
 
 def load_and_cache_examples_eval(data_args, tokenizer):
-    
+    df = pd.read_csv(filepath_or_buffer=data_args.eval_data_file, sep='\t', index_col=False)
+
+    # # Augment eval data to 4 classes
+    # data_dict = {'content':[],
+    #                'genre':[]}
+    # for content in df['content']:
+    #     for gen in ['action', 'romance', 'horror', 'crime']:
+    #         data_dict['content'].extend(content)
+    #         data_dict['genre'].extend(gen)
+
     max_source_length = data_args.max_seq_length
     padding = data_args.padding_in_preprocess
     preprocessing_num_workers = int(mp.cpu_count() / 2)
 
-    # prepare for eval gen
-    df = pd.read_csv(filepath_or_buffer=data_args.eval_gen_data_file, sep='\t', index_col=False)
+    def get_one_sent(raw_text):
+        return [sent.string.strip() for sent in nlp(raw_text).sents][0]
+
+    def get_ten_toks(raw_text):
+        return tokenizer.convert_tokens_to_string(tokenizer.tokenize(raw_text)[:10])
+
+
     def preprocess_function(examples):
         """
         batched preprocess function
         """
-        genre = examples['genre']
-        # to generate
-        # print(type(examples['content']))
-        model_inputs = tokenizer(examples['content'], truncation=True, padding=True, max_length=10)
-        model_inputs['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-            else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
-        model_inputs['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-            else [1, 1] + model_inputs['attention_mask']
+        # inputs = [get_one_sent(ex) for ex in examples['content']]
+        inputs = [get_ten_toks(ex) for ex in examples['content']]
 
+        genres = examples['genre']
+        model_inputs = tokenizer(inputs, truncation=True, padding=True, max_length=max_source_length)
+        model_inputs['input_ids'] = [inp if data_args.no_genre else tokenizer.encode(gen, add_prefix_space=True) + inp \
+                                     for gen, inp in zip(genres, model_inputs['input_ids'])]
+        model_inputs['attention_mask'] = [attn_mask if data_args.no_genre else [1] + attn_mask \
+                                          for attn_mask in model_inputs['attention_mask']]
+
+        labels = tokenizer(examples['content'], truncation=True, padding=True, max_length=max_source_length)['input_ids']
+        model_inputs['labels'] = [tokenizer.encode(gen, add_prefix_space=True) + label \
+                                    for gen, label in zip(genres, labels)]
+        # model_inputs['labels'] = [[label_to_toknum[gen]] + label \
+        #                             for gen, label in zip(genres, labels)]
         return model_inputs
 
-    columns_to_return = ['input_ids', 'attention_mask']
+    columns_to_return = ['input_ids', 'attention_mask', 'labels']
+
+    # preprocessing_num_workers =
     ds = Dataset.from_pandas(df)
-    eval_dataset_gen = ds.map(
+    # ds = Dataset.from_dict(data_dict)
+    dataset = ds.map(
         preprocess_function,
+        batched=True,
+        # num_proc=preprocessing_num_workers,
         load_from_cache_file=not data_args.overwrite_cache,
     )
-    eval_dataset_gen.set_format(type='torch', columns=columns_to_return)
 
-    # prepare for eval ppl
-    df_ppl = pd.read_csv(filepath_or_buffer=data_args.eval_ppl_data_file, sep='\t', index_col=False)
-    def preprocess_function(examples):
-        """
-        batched preprocess function
-        """
-        genre = examples['genre']
-        # to evaluate ppl
-        model_inputs = tokenizer(examples['content'], truncation=True, padding=padding, max_length=max_source_length - 2)
-        model_inputs['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-            else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
-        model_inputs['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-            else [1, 1] + model_inputs['attention_mask']
-        return model_inputs
-    ds_ppl = Dataset.from_pandas(df_ppl)
-    eval_dataset_ppl = ds_ppl.map(
-        preprocess_function,
-        load_from_cache_file=not data_args.overwrite_cache,
-    )
-    eval_dataset_ppl.set_format(type='torch', columns=columns_to_return)
-
-    return eval_dataset_gen, eval_dataset_ppl
+    origin_dataset = copy.deepcopy(dataset) # evaluate
+    dataset.set_format(type='torch', columns=columns_to_return)
+    return dataset, origin_dataset
 
 
 def load_and_cache_examples_train(data_args, tokenizer):
-    nll_max_seq_length = data_args.max_seq_length
-    contrast_max_seq_length = data_args.contrast_max_seq_length
+    max_source_length = data_args.max_seq_length
     # max_source_length = 256
     padding = data_args.padding_in_preprocess
     df = pd.read_csv(filepath_or_buffer=data_args.train_data_file, sep='\t', index_col=False)
@@ -97,56 +109,29 @@ def load_and_cache_examples_train(data_args, tokenizer):
             inputs_neg = examples['content_neg']
             model_inputs_final['neg_labels'] = label_to_int[examples['content_neg_genre']]
             # #### neg ####
-            model_inputs = tokenizer(inputs_neg, truncation=True, padding=padding, max_length=contrast_max_seq_length)
+            model_inputs = tokenizer(inputs_neg, truncation=True, padding=padding, max_length=max_source_length)
+            model_inputs_final['aug_neg']['input_ids'] = model_inputs['input_ids']
+            model_inputs_final['aug_neg']['attention_mask'] = model_inputs['attention_mask']
 
-            if data_args.neg_genre:
-                model_inputs_final['aug_neg']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre \
-                    else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
-                model_inputs_final['aug_neg']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre \
-                    else [1, 1] + model_inputs['attention_mask']
-            else:
-                model_inputs_final['aug_neg']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre \
-                    else [tokenizer.pad_token_id] + [tokenizer.bos_token_id] + model_inputs['input_ids']
-                model_inputs_final['aug_neg']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre \
-                    else [1, 1] + model_inputs['attention_mask']
         model_inputs_final['labels'] = label_to_int[examples['genre']]
 
         # original input
-        model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=nll_max_seq_length - 2)
+        model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=max_source_length)
         model_inputs_final['origin']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-            else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
+            else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
         model_inputs_final['origin']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-            else [1, 1] + model_inputs['attention_mask']
+            else [1] + model_inputs['attention_mask']
 
         # augmented input 09
-        if data_args.dropout_aug:
-            model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=contrast_max_seq_length)
-        else:
-            model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=contrast_max_seq_length)
-
-        if data_args.anchor_genre:
-            model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
-                else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
-            model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre\
-                else [1, 1] + model_inputs['attention_mask']
-        else:
-            model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids']
-            model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask']
+        model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)
+        # model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=200)
+        model_inputs_final['aug_09']['input_ids'] = model_inputs['input_ids']
+        model_inputs_final['aug_09']['attention_mask'] = model_inputs['attention_mask']
 
         # augmented input 05
-        if data_args.dropout_aug:
-            model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=contrast_max_seq_length)
-        else:
-            model_inputs = tokenizer(inputs_05, truncation=True, padding=padding, max_length=contrast_max_seq_length)
-
-        if data_args.pos_genre:
-            model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre \
-                else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
-            model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre \
-                else [1, 1] + model_inputs['attention_mask']
-        else:
-            model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids']
-            model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask']
+        model_inputs = tokenizer(inputs_05, truncation=True, padding=padding, max_length=max_source_length)
+        model_inputs_final['aug_05']['input_ids'] = model_inputs['input_ids']
+        model_inputs_final['aug_05']['attention_mask'] = model_inputs['attention_mask']
 
         return model_inputs_final
 
@@ -210,9 +195,9 @@ def load_and_cache_examples_eval_liketrain(data_args, tokenizer):
         # original input
         model_inputs = tokenizer(inputs, truncation=True, padding=padding, max_length=max_source_length)
         model_inputs_final['origin']['input_ids'] = model_inputs['input_ids'] if data_args.no_genre \
-            else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']
+            else tokenizer.encode(genre, add_prefix_space=True) + model_inputs['input_ids']
         model_inputs_final['origin']['attention_mask'] = model_inputs['attention_mask'] if data_args.no_genre \
-            else [1, 1] + model_inputs['attention_mask']
+            else [1] + model_inputs['attention_mask']
 
         # augmented input 09
         model_inputs = tokenizer(inputs_09, truncation=True, padding=padding, max_length=max_source_length)

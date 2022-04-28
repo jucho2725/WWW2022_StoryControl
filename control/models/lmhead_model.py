@@ -25,15 +25,10 @@ from transformers.utils.model_parallel_utils import assert_device_map, get_devic
 
 class GPT2LMHeadModel(GPT2PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"attn.masked_bias", r"attn.bias", r"lm_head.weight"]
-
-    # def __init__(self, config, model):
-    #     super().__init__(config)
-    #     self.transformer = model
     def __init__(self, config):
         super().__init__(config)
         self.transformer = GPT2Model(config)
 
-        
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         self.transformer._init_weights(self.lm_head)
@@ -117,7 +112,10 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
             ``labels = input_ids`` Indices are selected in ``[-100, 0, ..., config.vocab_size]`` All labels set to
             ``-100`` are ignored (masked), the loss is only computed for labels in ``[0, ..., config.vocab_size]``
         """
+
+        # print("이거 돌아가는거 맞지 ? ")
         if labels is None:
+            # print("레이블이 없음 인풋이 곧 레이블 ")
             labels = input_ids
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -147,6 +145,8 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         lm_logits = self.lm_head(hidden_states)
 
         loss = None
+        # print(f"label ??")
+        # print(labels)
         if labels is not None:
             # Shift so that tokens < n predict n
             shift_logits = lm_logits[..., :-1, :].contiguous()

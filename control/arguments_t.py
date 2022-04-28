@@ -49,7 +49,7 @@ class ModelArguments:
         default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
     )
     scl_weight: float = field(
-        default=0.7, metadata={"help": "Weight for supervised contrastive loss."}
+        default=0.8, metadata={"help": "Weight for supervised contrastive loss."}
     )
     tau: float = field(
         default=0.07, metadata={"help": "temperature scalar for supervised contrastive loss."}
@@ -57,13 +57,13 @@ class ModelArguments:
     num_labels: int = field(
         default=4,
     )
-
+    dropout_aug: bool = field(
+        default=False
+    )
     margin: float = field(
         default=0.5
     )
-    # margin_triplet: bool = field(default=True)
-    loss_type: str = field(default="cross_entropy")
-    in_batch_supervision: bool = field(default=True)
+
 
 
 @dataclass
@@ -72,13 +72,10 @@ class DataArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
     train_data_file: Optional[str] = field(
-        default="./data/train_1991_4_nge_dense_k1.tsv", metadata={"help": "The name of the dataset to use."}
+        default="./data/train_genre4.tsv", metadata={"help": "The name of the dataset to use."}
     )
-    eval_gen_data_file: Optional[str] = field(
-        default="./data/valid_1991_4_neg_dense_4class.tsv", metadata={"help": "The name of the dataset to use."}
-    )
-    eval_ppl_data_file: Optional[str] = field(
-        default="./data/valid_1991_4_neg_dense_4class.tsv", metadata={"help": "The name of the dataset to use."}
+    eval_data_file: Optional[str] = field(
+        default="./data/dev_genre4.tsv", metadata={"help": "The name of the dataset to use."}
     )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
@@ -94,17 +91,18 @@ class DataArguments:
                     "than this will be truncated, sequences shorter will be padded."
         },
     )
-    contrast_max_seq_length: int = field(default=32)
+    pad_to_max_length: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to pad all samples to `max_seq_length`. "
+                    "If False, will pad the samples dynamically when batching to the maximum length in the batch (which can "
+                    "be faster on GPU but will be slower on TPU)."
+        },
+    )
     no_genre: bool = field(default=False)
     ignore_pad_token_for_loss: bool = field(default=True)
-    padding_in_preprocess: bool = field(default=False)
-    hard_negative: bool = field(default=True)
-    dropout_aug: bool = field(
-        default=True
-    )
-    anchor_genre: bool = field(default=False)
-    pos_genre: bool = field(default=False)
-    neg_genre: bool = field(default=False)
+    padding_in_preprocess: bool = field(default=True,)
+    hard_negative: bool = field(default=False)
 
 
 @dataclass
@@ -112,25 +110,18 @@ class GenerationArguments:
     """
     Arguments pertaining to generation.
     """
-    ## beam search
+    # sample
+    do_sample: bool = field(default=True)
     # do_sample: bool = field(default=False)
     # beam
     # num_beams: int = field(default=5)
     # early_stopping: bool = field(default=True)
-    # distribution
-    # temperature: float = field(default=0.9)
-
-
-    ## sample
-    do_sample: bool = field(default=True)
-    # filtering
-    top_p: float = field(default=0.9)
-
     # filtering
     # top_k: int = field(default=50)
+    top_p: float = field(default=0.9)
     # top_p: float = field(default=0.95)
-
     # distribution
+    # temperature: float = field(default=0.9)
     repetition_penalty: float = field(default=1.2)
     # others
     num_return_sequences: int = field(default=1)
@@ -239,12 +230,6 @@ class TrainingArguments:
     adam_beta2: float = field(default=0.999, metadata={"help": "Beta2 for AdamW optimizer"})
     adam_epsilon: float = field(default=1e-8, metadata={"help": "Epsilon for AdamW optimizer."})
     max_grad_norm: float = field(default=1.0, metadata={"help": "Max gradient norm."})
-
-    anneal_w:  float = field(default=1.0, metadata={"help": "Max gradient norm."})
-    anneal_fun: str = field(default='sigmoid')
-    anneal_k: float = field(default=0.0, metadata={"help": "Max gradient norm."})
-    anneal_t0: float = field(default=0.0, metadata={"help": "Max gradient norm."})
-    pretrain_cof: float = field(default=5000.0, metadata={"help": "Max gradient norm."})
 
     num_train_epochs: float = field(default=3.0, metadata={"help": "Total number of training epochs to perform."})
     max_steps: int = field(

@@ -36,7 +36,7 @@ def clean_text(text):
     return text.strip().replace("<s>", "").replace("<|endoftext|>", "").replace("<|pad|>", "").replace("\n", "")
 
 def write_df(sents, data_args, path):
-    df = pd.read_csv(data_args.eval_data_file, sep='\t')
+    df = pd.read_csv(data_args.eval_gen_data_file, sep='\t')
     # df = df.sample(n=8)
     df['original'] = df['content']
     df['content'] = sents
