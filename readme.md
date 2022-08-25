@@ -32,6 +32,7 @@ See scripts/2_run_gen.sh. You may need to revise the variables in the shell scri
 
 ### Citation
 
+```
 @inproceedings{10.1145/3485447.3512004,
 author = {Cho, JinUk and Jeong, MinSu and Bak, JinYeong and Cheong, Yun-Gyung},
 title = {Genre-Controllable Story Generation via Supervised Contrastive Learning},
@@ -49,3 +50,4 @@ keywords = {contrastive learning, controllable text generation, automated story 
 location = {Virtual Event, Lyon, France},
 series = {WWW '22}
 }
+```
