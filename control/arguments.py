@@ -61,9 +61,13 @@ class ModelArguments:
     margin: float = field(
         default=0.5
     )
-    # margin_triplet: bool = field(default=True)
+    
     loss_type: str = field(default="cross_entropy")
     in_batch_supervision: bool = field(default=True)
+
+    cls_model: str = field(
+        default="cls_model_path"
+    )
 
 
 @dataclass
