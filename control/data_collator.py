@@ -28,9 +28,6 @@ class DataCollatorForLanguageModeling:
         self, examples: List[Union[List[int], torch.Tensor, Dict[str, torch.Tensor]]]
     ) -> Dict[str, torch.Tensor]:
         # Handle dict or lists with proper padding and conversion to tensor.
-        # for ex in examples:
-        #     print("input ids", ex['input_ids'].shape)
-        #     print("labels", ex['labels'].shape)
 
         batch = {}
         batch["input_ids"] = self.pad([ex['input_ids'] for ex in examples], self.tokenizer.pad_token_id)

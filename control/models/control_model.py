@@ -144,12 +144,7 @@ class SupConGPT2(GPT2PreTrainedModel):
             batch_09, batch_05, batch_neg = batch['aug_09'], batch['aug_05'], batch['aug_neg']
             encoder_output = self.encoder_forward(batch_09, batch_05, labels=batch['labels'], batch_input3=batch_neg, neg_labels=batch['neg_labels'])
 
-        # print(f"{batch_org['input_ids'].shape} {batch_09['input_ids'].shape} {batch_05['input_ids'].shape} {batch_neg['input_ids'].shape}")
 
-        # print("newnewnew")
-        # print(f"nll {nll_loss}")
-        # print(f"scl , {scl_loss}")
-        # print(여기)
         return ControlModelOutputs(
                 nll_loss=nll_loss,
                 scl_loss=encoder_output.scl_loss,

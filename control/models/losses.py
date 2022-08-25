@@ -67,13 +67,8 @@ class TripletLoss(nn.Module):
 
         rep_pos_anchor, rep_pos_other = rep_pos[:, 0], rep_pos[:, 1]
         rep_neg_anchor, rep_neg_other = rep_neg[:, 0], rep_neg[:, 1]
-        # print(rep_pos.shape)
-        # print(rep_neg.shape)
         distance_pos = self.distance_metric(rep_pos_anchor, rep_pos_other)
         distance_neg = self.distance_metric(rep_neg_anchor, rep_neg_other)
-        # print(distance_pos.shape)
-        # print(distance_neg.shape)
-        # print(여기)
         losses = F.relu(distance_pos.mean() - distance_neg.mean() + self.triplet_margin)
         return losses
 
@@ -159,14 +154,11 @@ class ContrastiveLoss(nn.Module):
         self.device = device
         self.in_batch_supervision = in_batch_supervision
 
-    # def forward(self, features, labels):
     def forward(self, features, labels, neg_labels=None):
-        # print(f"before sample {features.shape} {labels.shape}") # 8 2 768 || 8
         if self.in_batch_supervision:
             features, labels = self.make_samples_neg(features, labels, neg_labels)
         else:
             features, labels = self.make_samples_neg_no_inbatch(features, labels, neg_labels)
-        # print(f"after sample {features.shape} {labels.shape}") # 80 2 768 || 80
         rep_anchor = features[:, 0]
         rep_other = features[:, 1]
         distances = self.distance_metric(rep_anchor, rep_other)
@@ -300,7 +292,6 @@ class CELoss(nn.Module):
 
         # Separate representation
         z1, z2 = features[:,0], features[:,1]
-        # print(f"z1 z2 shape {z1.shape} {z2.shape}")
         # Hard negative
         num_sent = features.size(1)
         if num_sent == 3:
@@ -317,7 +308,6 @@ class CELoss(nn.Module):
 
             # Dummy vectors for allgather
             z1_list = [torch.zeros_like(z1) for _ in range(dist.get_world_size())]
-            # print(f"z1 list 0th index {z1_list[0].shape}")
             z2_list = [torch.zeros_like(z2) for _ in range(dist.get_world_size())]
             # Allgather
             dist.all_gather(tensor_list=z1_list, tensor=z1.contiguous())
@@ -331,18 +321,12 @@ class CELoss(nn.Module):
             z1 = torch.cat(z1_list, 0)
             z2 = torch.cat(z2_list, 0)
 
-        # print(f"z1 z2 shape {z1.unsqueeze(1).shape} {z2.unsqueeze(0).shape}")
         cos_sim = self.sim(z1.unsqueeze(1), z2.unsqueeze(0))
-        # print(f"cos_sim z1 z2 {cos_sim.shape}")
-        # print(cos_sim)
+
         # Hard negative
         if num_sent >= 3:
-            # print("hard negative!!!")
             z1_z3_cos = self.sim(z1.unsqueeze(1), z3.unsqueeze(0))
-            # print(f"cos_sim z1 z3 {z1_z3_cos.shape}")
             cos_sim = torch.cat([cos_sim, z1_z3_cos], 1)
-            # print(f"cos_sim z1z2 z1z3 {cos_sim.shape}")
-        # print(cos_sim)
 
 
 
@@ -354,14 +338,9 @@ class CELoss(nn.Module):
             weights = torch.tensor(
                 [[0.0] * (cos_sim.size(-1) - z1_z3_cos.size(-1)) + [0.0] * i + [z3_weight] + [0.0] * (z1_z3_cos.size(-1) - i - 1) for i in range(z1_z3_cos.size(-1))]
             ).to(self.device)
-            # print(f"weights {weights.shape}")
+
             cos_sim = cos_sim + weights
 
         loss = loss_fct(cos_sim, labels)
-
-        # print(f"cos_sim {cos_sim.shape}")
-        # print(f"labels {labels.shape}")
-        # print(f"loss {loss}")
-        # print(여기)
 
         return loss

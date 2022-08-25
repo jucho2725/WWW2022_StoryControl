@@ -29,7 +29,6 @@ def load_and_cache_examples_eval(data_args, tokenizer):
         """
         genre = examples['genre']
         # to generate
-        # print(type(examples['content']))
         model_inputs = tokenizer(examples['content'], truncation=True, padding=True, max_length=10)
         model_inputs['input_ids'] = model_inputs['input_ids'] if data_args.no_genre\
             else tokenizer.encode(genre, add_prefix_space=True) + [tokenizer.bos_token_id] + model_inputs['input_ids']

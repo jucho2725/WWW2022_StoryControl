@@ -172,11 +172,6 @@ def main():
     metric = load_metric("f1")
 
     def compute_metrics(p):
-        # print(p.predictions)
-        # preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-        # preds = 각 데이터 샘플마다 (num_labels) 만큼의 array 나옴
-        # label_ids = p.label_ids[0] if isinstance(p.label_ids, tuple) else p.label_ids
-        # label_ids = [p[0] for p in label_ids] if isinstance(label_ids[0], list) else label_ids
         preds = np.argmax(p.predictions, axis=1).tolist()
         label_ids = list(p.label_ids)
 
@@ -211,7 +206,6 @@ def main():
             f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
             "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
         )
-        # print("hello")
 
     if train_args.do_train:
         logger.info(f"***** Running training *****")
