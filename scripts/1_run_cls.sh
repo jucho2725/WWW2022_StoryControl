@@ -3,9 +3,9 @@
 # This shell script run train & inference phase for genre-controllable generation.
 # You need to specify train & eval data file, classfier model path, and output directory path.
 
-TRAIN_CLS_FILEPATH="/write/your/data/path_train.tsv"
-EVAL_CLS_FILEPATH="/write/your/data/path_dev.tsv"
-OUTPUT_DIR_PATH="/write/your/dir/path"
+TRAIN_CLS_FILEPATH="/write/your/path/cls_train.tsv"
+EVAL_CLS_FILEPATH="/write/your/path/cls_dev.tsv"
+OUTPUT_DIR_PATH="/write/your/path/"
 
 python ../train_cls.py --train_data_file $TRAIN_CLS_FILEPATH
   --eval_data_file $EVAL_CLS_FILEPATH \
