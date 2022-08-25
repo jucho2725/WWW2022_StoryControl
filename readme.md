@@ -18,7 +18,9 @@ pip install -r requirements.txt
 
 > Step 2: Process dataset
 
-This is the dataset link.
+[dataset link]()
+
+Download the dataset and use files as the script described.
 
 ### Run experiment
 
